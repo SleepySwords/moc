@@ -8,19 +8,21 @@ module ModelComputation.LambdaCalculus where
 import Control.Applicative (Alternative (some, (<|>)))
 import Control.Monad (void)
 import Data.Foldable (Foldable (foldl'))
-import Data.List (intersect, nub, union)
+import Data.List (nub, union)
 import Data.Text (Text)
 import Data.Void (Void)
 import Debug.Trace (trace)
 import Text.Megaparsec (MonadParsec (try), Parsec, between, single)
-import Text.Megaparsec.Char (alphaNumChar, space1)
+import Text.Megaparsec.Char (lowerChar, space1)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 data Expr
   = Var Char
   | App Expr Expr
-  | Abs Char Expr deriving (Eq)
+  | Abs Char Expr
+  deriving (Eq)
 
+-- Potentially print numbers
 instance Show Expr where
   show (Var x) = [x]
   show (App fun arg) = "(" ++ show fun ++ " " ++ show arg ++ ")"
@@ -30,53 +32,54 @@ instance Show Expr where
 -- t, s and r are lambda variables
 -- x and y are variables
 -- Inside t, x replaces r
-capture_avoid_sub :: Expr -> Char -> Expr -> Expr
-capture_avoid_sub (Var t) x r
+substitution :: Expr -> Char -> Expr -> Expr
+substitution (Var t) x r
   -- x[x := r] -> r
   | t == x = r
   -- y[x := r] -> y, if x != y
   | otherwise = Var t
 -- (t s)[x := r] -> (t[x := r])(s[x := r])
-capture_avoid_sub (App t s) x r = App (capture_avoid_sub t x r) (capture_avoid_sub s x r)
-capture_avoid_sub abstraction@(Abs v t) x r
+substitution (App t s) x r = App (substitution t x r) (substitution s x r)
+substitution abstraction@(Abs v t) x r
   -- (λx.t)[x := r] -> λx.t
   | v == x = abstraction
   -- (λy.t)[x := r] -> λy.(t[x := r]), if y is not equal to x and y does not appear in the free
   -- variables of r
-  | v /= x && v `notElem` free_variables r = Abs v (capture_avoid_sub t x r)
-  | otherwise = capture_avoid_sub (alpha_reduce abstraction (free_variables r)) x r
+  | v /= x && v `notElem` freeVariables r = Abs v (substitution t x r)
+  -- Must alpha reduce here to avoid name collisions
+  | otherwise = substitution (alphaReduce abstraction (freeVariables r)) x r
 
 -- (λx.t) s -> t[x := s]
-bconversion :: Expr -> Expr
-bconversion (App (Abs var body) x) = capture_avoid_sub body var x
-bconversion (Abs var body) = Abs var (bconversion body)
-bconversion (App left right) = App (bconversion left) (bconversion right)
-bconversion a = a
+bReduction :: Expr -> Expr
+bReduction (App (Abs var body) x) = substitution body var x
+bReduction (Abs var body) = Abs var (bReduction body)
+bReduction (App left right) = App (bReduction left) (bReduction right)
+bReduction a = a
 
-alpha_reduce :: Expr -> [Char] -> Expr
-alpha_reduce abstr@(Abs var body) free_vars = Abs suitable_char (capture_avoid_sub body var (Var suitable_char))
+alphaReduce :: Expr -> [Char] -> Expr
+alphaReduce abstr@(Abs var body) free_vars = Abs suitable_char (substitution body var (Var suitable_char))
   where
     disallowed_chars = variables abstr `union` free_vars
     suitable_char = head [x | x <- ['a' .. 'z'] ++ ['A' .. 'Z'], x `notElem` disallowed_chars]
-alpha_reduce _ _ = error "Cannot alpha reduce with not an abstraction"
+alphaReduce _ _ = error "Cannot alpha reduce with not an abstraction"
 
-free_variables :: Expr -> [Char]
-free_variables (Abs var body) = [x | x <- free_variables body, x /= var]
-free_variables (Var x) = [x]
-free_variables (App lhs rhs) = free_variables lhs `union` free_variables rhs
+freeVariables :: Expr -> [Char]
+freeVariables (Abs var body) = [x | x <- freeVariables body, x /= var]
+freeVariables (Var x) = [x]
+freeVariables (App lhs rhs) = freeVariables lhs `union` freeVariables rhs
 
-bound_variables :: Expr -> [Char]
-bound_variables (Abs var body) = var : bound_variables body
-bound_variables (App lhs rhs) = bound_variables lhs ++ bound_variables rhs
-bound_variables (Var _) = []
+boundVariables :: Expr -> [Char]
+boundVariables (Abs var body) = var : boundVariables body
+boundVariables (App lhs rhs) = boundVariables lhs `union` boundVariables rhs
+boundVariables (Var _) = []
 
 variables :: Expr -> [Char]
-variables x = nub $ free_variables x ++ bound_variables x
+variables x = nub $ freeVariables x ++ boundVariables x
 
 steps_to_reduce :: Expr -> [Expr]
 steps_to_reduce expression
-  | expression == bconversion expression = [expression]
-  | otherwise = expression:steps_to_reduce (bconversion expression)
+  | expression == bReduction expression = [expression]
+  | otherwise = expression : steps_to_reduce (bReduction expression)
 
 debug :: c -> String -> c
 debug = flip trace

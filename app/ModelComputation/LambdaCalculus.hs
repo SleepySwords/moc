@@ -84,6 +84,10 @@ steps_to_reduce expression
 debug :: c -> String -> c
 debug = flip trace
 
+integerToChurchEncoding :: Int -> Expr
+integerToChurchEncoding n = Abs 'f' (Abs 'x' inner)
+  where inner = iterate (App (Var 'f')) (Var 'x') !! n
+
 type Parser a = Parsec Void Text a
 
 sc :: Parser ()
@@ -99,7 +103,13 @@ dotSymbol :: Parser ()
 dotSymbol = void $ lexeme (single '.')
 
 parseVariable :: Parser Expr
-parseVariable = Var <$> alphaNumChar
+parseVariable = (Var <$> lowerChar) <|> parseChurchEncoding
+
+parseChurchEncoding :: Parser Expr
+parseChurchEncoding = integerToChurchEncoding <$> parseDigit
+
+parseDigit :: Parser Int
+parseDigit = lexeme L.decimal
 
 parseApplication :: Parser Expr
 parseApplication = do
@@ -110,7 +120,7 @@ parseApplication = do
 parseAbstraction :: Parser Expr
 parseAbstraction = do
   lambdaSymbol
-  (first : vars) <- reverse <$> some alphaNumChar
+  (first : vars) <- reverse <$> some lowerChar
   dotSymbol
   body <- lambdaParser
   return $ foldl' (flip Abs) (Abs first body) vars

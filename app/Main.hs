@@ -22,7 +22,9 @@ main = do
   evaluateLambda "(λy.(\\x.y)) x"
   evaluateLambda "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
   evaluateLambda "(λxyz.x y z) (λx.x x) (λx.x) x"
+  evaluateLambda "10"
 
+  print $ integerToChurchEncoding 3
 
 evaluateLambda :: String -> IO ()
 evaluateLambda x = case parse (lambdaParser <* eof) "Failed" (pack x) of

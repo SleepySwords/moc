@@ -47,7 +47,7 @@ substitution abstraction@(Abs v t) x r
   -- variables of r
   | v /= x && v `notElem` freeVariables r = Abs v (substitution t x r)
   -- Must alpha reduce here to avoid name collisions
-  | otherwise = substitution (alphaReduce abstraction (freeVariables r)) x r
+  | otherwise = substitution (aConversion abstraction (freeVariables r)) x r
 
 -- (λx.t) s -> t[x := s]
 bReduction :: Expr -> Expr
@@ -56,12 +56,12 @@ bReduction (Abs var body) = Abs var (bReduction body)
 bReduction (App left right) = App (bReduction left) (bReduction right)
 bReduction a = a
 
-alphaReduce :: Expr -> [Char] -> Expr
-alphaReduce abstr@(Abs var body) free_vars = Abs suitable_char (substitution body var (Var suitable_char))
+aConversion :: Expr -> [Char] -> Expr
+aConversion abstr@(Abs var body) free_vars = Abs suitable_char (substitution body var (Var suitable_char))
   where
     disallowed_chars = variables abstr `union` free_vars
     suitable_char = head [x | x <- ['a' .. 'z'] ++ ['A' .. 'Z'], x `notElem` disallowed_chars]
-alphaReduce _ _ = error "Cannot alpha reduce with not an abstraction"
+aConversion _ _ = error "Cannot alpha reduce with not an abstraction"
 
 freeVariables :: Expr -> [Char]
 freeVariables (Abs var body) = [x | x <- freeVariables body, x /= var]
@@ -109,7 +109,7 @@ parseChurchEncoding :: Parser Expr
 parseChurchEncoding = integerToChurchEncoding <$> parseDigit
 
 parseDigit :: Parser Int
-parseDigit = lexeme L.decimal
+parseDigit = L.decimal
 
 parseApplication :: Parser Expr
 parseApplication = do

@@ -86,7 +86,21 @@ debug = flip trace
 
 integerToChurchEncoding :: Int -> Expr
 integerToChurchEncoding n = Abs 'f' (Abs 'x' inner)
-  where inner = iterate (App (Var 'f')) (Var 'x') !! n
+  where
+    inner = iterate (App (Var 'f')) (Var 'x') !! n
+
+churchEncodingToInteger :: Expr -> Maybe Int
+churchEncodingToInteger (Abs a (Abs b inner)) = hasApplied inner
+  where
+    hasApplied (App l r)
+      | Var rs <- r, rs == b = Just 1
+      | Var ls <- l, ls == a = (+ 1) <$> hasApplied r
+      | otherwise = Nothing
+    hasApplied (Var i)
+      | i == b = Just 0
+      | otherwise = Nothing
+    hasApplied _ = Nothing
+churchEncodingToInteger _ = Nothing
 
 type Parser a = Parsec Void Text a
 

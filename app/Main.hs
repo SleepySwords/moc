@@ -23,6 +23,7 @@ main = do
   evaluateLambda "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
   evaluateLambda "(λm.λn.λf.λx.m f (n f x)) 3 12"
   evaluateLambda "(λxyz.x y z) (λx.x x) (λx.x) x"
+  evaluateLambda "(\\bxy.b x y) True 1 0"
   evaluateLambda "10"
 
   print $ integerToChurchEncoding 3

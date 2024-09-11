@@ -13,7 +13,7 @@ import Data.Text (Text)
 import Data.Void (Void)
 import Debug.Trace (trace)
 import Text.Megaparsec (MonadParsec (try), Parsec, between, single)
-import Text.Megaparsec.Char (lowerChar, space1)
+import Text.Megaparsec.Char (alphaNumChar, lowerChar, space1, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 data Expr
@@ -22,11 +22,26 @@ data Expr
   | Abs Char Expr
   deriving (Eq)
 
--- Potentially print numbers
+-- Print non verbose
 instance Show Expr where
   show (Var x) = [x]
-  show (App fun arg) = "(" ++ show fun ++ " " ++ show arg ++ ")"
-  show (Abs var body) = "(λ" ++ [var] ++ "." ++ show body ++ ")"
+  -- show (App fun arg) = "(" ++ show fun ++ " " ++ show arg ++ ")"
+  show (App m n) = mPrint ++ " " ++ nPrint
+    where mPrint = case m of
+            Abs _ _ -> "(" ++ show m ++ ")"
+            _ -> show m
+          nPrint = case n of
+            Var _ -> show n
+            _ -> "(" ++ show n ++ ")"
+  -- show (Abs var body) = "(λ" ++ [var] ++ "." ++ show body ++ ")"
+  show (Abs var body) = "λ" ++ var : vars ++ "." ++ show inner_body
+    where
+      flattenAbs :: Expr -> (Expr, [Char])
+      flattenAbs (Abs v b) =
+        let (ib, vs) = flattenAbs b
+         in (ib, v : vs)
+      flattenAbs e = (e, [])
+      (inner_body, vars) = flattenAbs body
 
 -- t[x := r]
 -- t, s and r are lambda variables
@@ -117,13 +132,27 @@ dotSymbol :: Parser ()
 dotSymbol = void $ lexeme (single '.')
 
 parseVariable :: Parser Expr
-parseVariable = (Var <$> lowerChar) <|> parseChurchEncoding
+parseVariable = (Var <$> lowerChar) <|> parseChurchEncoding <|> parseAbbreviation
 
 parseChurchEncoding :: Parser Expr
 parseChurchEncoding = integerToChurchEncoding <$> parseDigit
 
 parseDigit :: Parser Int
 parseDigit = L.decimal
+
+parseAbbreviationString :: Parser String
+parseAbbreviationString = (:) <$> upperChar <*> some alphaNumChar
+
+parseAbbreviation :: Parser Expr
+parseAbbreviation = do
+  str <- parseAbbreviationString
+  if str == "True"
+    then
+      return $ Abs 'x' (Abs 'y' (Var 'x'))
+    else
+      -- Come back when finished
+      -- the custom errors in megaparsec tutorial
+      fail ("Undefined abbreviation: " ++ str)
 
 parseApplication :: Parser Expr
 parseApplication = do

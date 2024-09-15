@@ -75,7 +75,7 @@ aConversion :: Expr -> [Char] -> Expr
 aConversion abstr@(Abs var body) free_vars = Abs suitable_char (substitution body var (Var suitable_char))
   where
     disallowed_chars = variables abstr `union` free_vars
-    suitable_char = head [x | x <- ['a' .. 'z'] ++ ['A' .. 'Z'], x `notElem` disallowed_chars]
+    suitable_char = head [x | x <- ['a' .. 'z'], x `notElem` disallowed_chars]
 aConversion _ _ = error "Cannot alpha reduce with not an abstraction"
 
 freeVariables :: Expr -> [Char]

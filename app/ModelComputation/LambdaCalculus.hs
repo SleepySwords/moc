@@ -9,12 +9,16 @@ import Control.Applicative (Alternative (some, (<|>)))
 import Control.Monad (void)
 import Data.Foldable (Foldable (foldl'))
 import Data.List (nub, union)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Data.Void (Void)
 import Debug.Trace (trace)
 import Text.Megaparsec (MonadParsec (try), Parsec, between, single)
 import Text.Megaparsec.Char (alphaNumChar, lowerChar, space1, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
+
+type SymbolTable = Map String Expr
 
 data Expr
   = Var Char
@@ -27,12 +31,13 @@ instance Show Expr where
   show (Var x) = [x]
   -- show (App fun arg) = "(" ++ show fun ++ " " ++ show arg ++ ")"
   show (App m n) = mPrint ++ " " ++ nPrint
-    where mPrint = case m of
-            Abs _ _ -> "(" ++ show m ++ ")"
-            _ -> show m
-          nPrint = case n of
-            Var _ -> show n
-            _ -> "(" ++ show n ++ ")"
+    where
+      mPrint = case m of
+        Abs _ _ -> "(" ++ show m ++ ")"
+        _ -> show m
+      nPrint = case n of
+        Var _ -> show n
+        _ -> "(" ++ show n ++ ")"
   -- show (Abs var body) = "(λ" ++ [var] ++ "." ++ show body ++ ")"
   show (Abs var body) = "λ" ++ var : vars ++ "." ++ show inner_body
     where
@@ -131,8 +136,8 @@ lambdaSymbol = void $ lexeme (single '\\') <|> lexeme (single 'λ')
 dotSymbol :: Parser ()
 dotSymbol = void $ lexeme (single '.')
 
-parseVariable :: Parser Expr
-parseVariable = (Var <$> lowerChar) <|> parseChurchEncoding <|> parseAbbreviation
+parseVariable :: SymbolTable -> Parser Expr
+parseVariable s = (Var <$> lowerChar) <|> parseChurchEncoding <|> parseAbbreviation s
 
 parseChurchEncoding :: Parser Expr
 parseChurchEncoding = integerToChurchEncoding <$> parseDigit
@@ -143,36 +148,47 @@ parseDigit = L.decimal
 parseAbbreviationString :: Parser String
 parseAbbreviationString = (:) <$> upperChar <*> some alphaNumChar
 
-parseAbbreviation :: Parser Expr
-parseAbbreviation = do
+parseAbbreviation :: SymbolTable -> Parser Expr
+parseAbbreviation s = do
   str <- parseAbbreviationString
-  if str == "True"
-    then
-      return $ Abs 'x' (Abs 'y' (Var 'x'))
-    else
-      -- Come back when finished
-      -- the custom errors in megaparsec tutorial
-      fail ("Undefined abbreviation: " ++ str)
+  return (s Map.! str)
 
-parseApplication :: Parser Expr
-parseApplication = do
-  first_term <- term
-  more_terms <- some (space1 *> term)
+-- if str == "True"
+--   then
+--     return $ Abs 'x' (Abs 'y' (Var 'x'))
+--   else
+--     -- Come back when finished
+--     -- the custom errors in megaparsec tutorial
+--     fail ("Undefined abbreviation: " ++ str)
+
+parseApplication :: SymbolTable -> Parser Expr
+parseApplication s = do
+  first_term <- term s
+  more_terms <- some (space1 *> term s)
   return $ foldl' App first_term more_terms
 
-parseAbstraction :: Parser Expr
-parseAbstraction = do
+parseAbstraction :: SymbolTable -> Parser Expr
+parseAbstraction s = do
   lambdaSymbol
   (first : vars) <- reverse <$> some lowerChar
   dotSymbol
-  body <- lambdaParser
+  body <- lambdaParser s
   return $ foldl' (flip Abs) (Abs first body) vars
 
-paranthetical :: Parser Expr
-paranthetical = between (single '(') (single ')') lambdaParser
+paranthetical :: SymbolTable -> Parser Expr
+paranthetical s = between (single '(') (single ')') (lambdaParser s)
 
-term :: Parser Expr
-term = parseAbstraction <|> parseVariable <|> paranthetical
+term :: SymbolTable -> Parser Expr
+term s = parseAbstraction s <|> parseVariable s <|> paranthetical s
 
-lambdaParser :: Parser Expr
-lambdaParser = try parseApplication <|> term
+lambdaParser :: SymbolTable -> Parser Expr
+lambdaParser s = try (parseApplication s) <|> term s
+
+-- Consider using a parser expr
+defaultSymbolTable :: Map String Expr
+defaultSymbolTable =
+  Map.fromList
+    [ ("True", Abs 'x' (Abs 'y' (Var 'x'))),
+      ("False", Abs 'x' (Abs 'y' (Var 'y'))),
+      ("IfThen", Abs 'b' (Abs 'x' (Abs 'y' (App (App (Var 'b') (Var 'x')) (Var 'y')))))
+    ]

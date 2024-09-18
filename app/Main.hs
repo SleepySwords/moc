@@ -2,35 +2,37 @@
 
 module Main where
 
-import ModelComputation.LambdaCalculus (lambdaParser, steps_to_reduce, integerToChurchEncoding, churchEncodingToInteger)
+import ModelComputation.LambdaCalculus (lambdaParser, steps_to_reduce, integerToChurchEncoding, churchEncodingToInteger, defaultSymbolTable, SymbolTable)
 import Text.Megaparsec (MonadParsec (eof), parse, parseTest)
 import Data.Text (pack)
 
 main :: IO ()
 main = do
-  parseTest (lambdaParser <* eof) "\\x. x \\a.x \\y.y"
-  parseTest (lambdaParser <* eof) "(\\x. (\\a.x \\y.y) x) a"
-  evaluateLambda "(\\x. x \\x.x) a"
-  parseTest (lambdaParser <* eof) "\\xy.x"
-  parseTest (lambdaParser <* eof) "\\xy.x a v"
-  parseTest (lambdaParser <* eof) "λf.λx.f (f (f x))"
-  evaluateLambda "(λp.λa.λb.p b a) λx.λy.y"
-  evaluateLambda "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
+  let symbols = defaultSymbolTable
+  parseTest (lambdaParser symbols <* eof) "\\x. x \\a.x \\y.y"
+  parseTest (lambdaParser symbols <* eof) "(\\x. (\\a.x \\y.y) x) a"
+  evaluateLambda symbols "(\\x. x \\x.x) a"
+  parseTest (lambdaParser symbols <* eof) "\\xy.x"
+  parseTest (lambdaParser symbols <* eof) "\\xy.x a v"
+  parseTest (lambdaParser symbols <* eof) "λf.λx.f (f (f x))"
+  evaluateLambda symbols "(λp.λa.λb.p b a) λx.λy.y"
+  evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
 
-  evaluateLambda "(λpq.p q p) (λxy.y) (λxy.y)"
-  evaluateLambda "(λx.(\\x.x) x)"
-  evaluateLambda "(λy.(\\x.y)) x"
-  evaluateLambda "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
-  evaluateLambda "(λm.λn.λf.λx.m f (n f x)) 3 12"
-  evaluateLambda "(λxyz.x y z) (λx.x x) (λx.x) x"
-  evaluateLambda "(\\bxy.b x y) True 1 0"
-  evaluateLambda "(\\xy.x y) y"
-  evaluateLambda "10"
+  evaluateLambda symbols "(λpq.p q p) (λxy.y) (λxy.y)"
+  evaluateLambda symbols "(λx.(\\x.x) x)"
+  evaluateLambda symbols "(λy.(\\x.y)) x"
+  evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
+  evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) 3 12"
+  evaluateLambda symbols "(λxyz.x y z) (λx.x x) (λx.x) x"
+  evaluateLambda symbols "(\\bxy.b x y) True 1 0"
+  evaluateLambda symbols "IfThen False 1 100"
+  evaluateLambda symbols "(\\xy.x y) y"
+  evaluateLambda symbols "10"
 
   print $ integerToChurchEncoding 3
 
-evaluateLambda :: String -> IO ()
-evaluateLambda x = case parse (lambdaParser <* eof) "Failed" (pack x) of
+evaluateLambda :: SymbolTable -> String -> IO ()
+evaluateLambda s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
                   Right expression -> do
                     putStrLn ""
                     putStrLn ("Evaluating \x1b[32m" ++ show expression ++ "\x1b[0m")

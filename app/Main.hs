@@ -2,9 +2,9 @@
 
 module Main where
 
-import ModelComputation.LambdaCalculus (lambdaParser, steps_to_reduce, integerToChurchEncoding, churchEncodingToInteger, defaultSymbolTable, SymbolTable)
-import Text.Megaparsec (MonadParsec (eof), parse, parseTest)
 import Data.Text (pack)
+import ModelComputation.LambdaCalculus (SymbolTable, churchEncodingToInteger, defaultSymbolTable, integerToChurchEncoding, lambdaParser, notSubstituted, steps_to_reduce)
+import Text.Megaparsec (MonadParsec (eof), parse, parseTest)
 
 main :: IO ()
 main = do
@@ -33,12 +33,18 @@ main = do
 
 evaluateLambda :: SymbolTable -> String -> IO ()
 evaluateLambda s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
-                  Right expression -> do
-                    putStrLn ""
-                    putStrLn ("Evaluating \x1b[32m" ++ show expression ++ "\x1b[0m")
-                    let steps = steps_to_reduce expression
-                    mapM_ print steps
-                    case churchEncodingToInteger (last steps) of
-                      Just v -> putStrLn ("Also known as value " ++ show v)
-                      Nothing -> return ()
-                  Left err -> print err
+  Right expression -> do
+    putStrLn ""
+    putStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
+    let steps = steps_to_reduce (notSubstituted <$ expression)
+    mapM_
+      ( \a -> do
+          print a
+          putStrLn ""
+      )
+      steps
+
+    case churchEncodingToInteger (last steps) of
+      Just v -> putStrLn ("Also known as value " ++ show v)
+      Nothing -> return ()
+  Left err -> print err

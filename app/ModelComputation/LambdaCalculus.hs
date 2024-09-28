@@ -21,13 +21,13 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 type SymbolTable = Map String (Expr ())
 
-data ReduceInfo = ReduceInfo {substituted :: Maybe Char} deriving (Eq)
+data ReduceInfo = ReduceInfo {substituted :: Maybe Char, rainbow :: Int} deriving (Eq)
 
 notSubstituted :: ReduceInfo
-notSubstituted = ReduceInfo {substituted = Nothing}
+notSubstituted = ReduceInfo {substituted = Nothing, rainbow = 0}
 
 replacedBind :: Char -> ReduceInfo
-replacedBind x = ReduceInfo {substituted = Just x}
+replacedBind x = ReduceInfo {substituted = Just x, rainbow = 0}
 
 -- Use generics here, parser does not need this info..
 data Expr a
@@ -43,15 +43,21 @@ instance Functor Expr where
 
 class Colour a where
   colour :: a -> String
+  rainbowP :: a -> String
+  addColour :: a -> a
   reset :: a -> String
 
 instance Colour () where
   colour = const ""
+  rainbowP = const ""
+  addColour = id
   reset = const ""
 
 instance Colour ReduceInfo where
   colour ReduceInfo {substituted = Just _} = "\x1b[32m"
   colour ReduceInfo {substituted = Nothing} = ""
+  rainbowP ReduceInfo {rainbow = v} = "\x1b[" ++ show (31 + (v `mod` 6)) ++ "m"
+  addColour ReduceInfo {rainbow = v, substituted} = ReduceInfo {substituted, rainbow = v + 1}
   reset = const "\x1b[0m"
 
 -- Print non verbose
@@ -60,13 +66,13 @@ instance (Colour a) => Show (Expr a) where
   -- show (App fun arg) = "(" ++ show fun ++ " " ++ show arg ++ ")"
   show (App {info, function = m, input = n}) = colour info ++ mPrint ++ " " ++ nPrint ++ reset info
     where
-      addParantheses str = colour info ++ "(" ++ str ++ colour info ++ ")"
+      addParantheses str = rainbowP info ++ "(" ++ reset info ++ colour info ++ str ++ rainbowP info ++ ")" ++ reset info
       mPrint = case m of
-        Abs {} -> addParantheses (show m)
+        Abs {} -> addParantheses (show (addColour <$> m))
         _ -> show m
       nPrint = case n of
         Var {} -> show n
-        _ -> addParantheses (show n)
+        _ -> addParantheses (show (addColour <$> n))
   -- show (Abs var body) = "(λ" ++ [var] ++ "." ++ show body ++ ")"
   show (Abs {info, bind, body}) = colour info ++ "λ" ++ bind : vars ++ "." ++ show inner_body ++ reset info
     where

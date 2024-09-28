@@ -21,14 +21,13 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 type SymbolTable = Map String (Expr ())
 
-newtype ReduceInfo = ReduceInfo {substituted :: Bool} deriving (Eq)
+data ReduceInfo = ReduceInfo {substituted :: Maybe Char} deriving (Eq)
 
 notSubstituted :: ReduceInfo
-notSubstituted = ReduceInfo {substituted = False}
+notSubstituted = ReduceInfo {substituted = Nothing}
 
-hasSubstituted = ReduceInfo {substituted = True}
-
-hasSubstituted :: ReduceInfo
+replacedBind :: Char -> ReduceInfo
+replacedBind x = ReduceInfo {substituted = Just x}
 
 -- Use generics here, parser does not need this info..
 data Expr a
@@ -51,8 +50,8 @@ instance Colour () where
   reset = const ""
 
 instance Colour ReduceInfo where
-  colour ReduceInfo {substituted = True} = "\x1b[32m"
-  colour ReduceInfo {substituted = False} = ""
+  colour ReduceInfo {substituted = Just _} = "\x1b[32m"
+  colour ReduceInfo {substituted = Nothing} = ""
   reset = const "\x1b[0m"
 
 -- Print non verbose
@@ -101,7 +100,7 @@ substitution abstraction@(Abs {info, bind = v, body = t}) x r
 
 -- (λx.t) s -> t[x := s]
 bReduction :: Expr ReduceInfo -> Expr ReduceInfo
-bReduction (App {function = (Abs {bind, body}), input = x}) = substitution body bind (hasSubstituted <$ x)
+bReduction (App {function = (Abs {bind, body}), input = x}) = substitution body bind (replacedBind bind <$ x)
 bReduction (Abs {info, bind, body}) = Abs info bind (bReduction body)
 bReduction (App {info, function, input}) = App info (bReduction function) (bReduction input)
 bReduction a = a
@@ -139,12 +138,12 @@ integerToChurchEncoding n = Abs () 'f' (Abs () 'x' inner)
   where
     inner = iterate (App () (Var () 'f')) (Var () 'x') !! n
 
-churchEncodingToInteger :: Expr ReduceInfo -> Maybe Int
+churchEncodingToInteger :: Expr a -> Maybe Int
 churchEncodingToInteger (Abs {bind = a, body = (Abs {bind = b, body = innerBody})}) = hasApplied innerBody
   where
     hasApplied (App {function, input})
-      | Var {name = rs} <- function, rs == b = Just 1
-      | Var {name = ls} <- input, ls == a = (+ 1) <$> hasApplied input
+      | Var {name = rs} <- input, rs == b = Just 1
+      | Var {name = ls} <- function, ls == a = (+ 1) <$> hasApplied input
       | otherwise = Nothing
     hasApplied (Var {name = i})
       | i == b = Just 0

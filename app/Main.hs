@@ -11,7 +11,7 @@ import Data.Text (justifyRight, pack)
 import qualified Data.Text.IO
 import GHC.IO.Handle (hFlush)
 import GHC.IO.Handle.FD (stdout)
-import ModelComputation.LambdaCalculus (Expr (Abs, App, Var, body, function, info, input), ReduceInfo (ReduceInfo, substituted), SymbolTable, churchEncodingToInteger, defaultSymbolTable, integerToChurchEncoding, lambdaParser, notSubstituted, steps_to_reduce)
+import ModelComputation.LambdaCalculus (Expr (Abs, App, Var, body, function, info, input), ReduceInfo (ReduceInfo, substituted), SymbolTable, churchEncodingToInteger, defaultSymbolTable, integerToChurchEncoding, lambdaParser, notSubstituted, steps_to_reduce, steps_to_reduce_full)
 import System.Console.ANSI (getTerminalSize, setCursorColumn)
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStr, outputStrLn, runInputT)
 import Text.Megaparsec (MonadParsec (eof), parse, parseTest)
@@ -66,12 +66,15 @@ evaluateLambda2 s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
   Right expression -> do
     outputStrLn ""
     outputStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
-    let steps = steps_to_reduce (notSubstituted <$ expression)
+    let steps = steps_to_reduce_full (notSubstituted <$ expression)
     mapM_
       ( \a -> do
           outputStr (show a)
           liftIO $ do
-            let subMsg = intercalate "," (map (\(ch, ex) -> "Substituted " ++ [ch] ++ ":=" ++ show (void ex)) (findSubstituted a))
+            let subMsg = case map (\(ch, ex) -> "Substituted " ++ [ch] ++ ":=" ++ show (void ex)) (findSubstituted a) of
+                  msg : _ -> msg
+                  _ -> []
+
             Just (_, width) <- getTerminalSize
             if length (show (void a)) + length subMsg + 30 > width
               then

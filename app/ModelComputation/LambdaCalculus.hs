@@ -12,11 +12,12 @@ import Data.Foldable (Foldable (foldl'))
 import Data.List (nub, union)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Void (Void)
 import Debug.Trace (trace)
 import Text.Megaparsec (MonadParsec (try), Parsec, between, single)
-import Text.Megaparsec.Char (alphaNumChar, lowerChar, space1, upperChar)
+import Text.Megaparsec.Char (alphaNumChar, lowerChar, punctuationChar, space1, symbolChar, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 type SymbolTable = Map String (Expr ())
@@ -44,36 +45,51 @@ instance Functor Expr where
 class Colour a where
   colour :: a -> String
   rainbowP :: a -> String
-  addColour :: a -> a
+  updateP :: a -> a
   reset :: a -> String
 
 instance Colour () where
   colour = const ""
   rainbowP = const ""
-  addColour = id
+  updateP = id
   reset = const ""
+
+rainbowColour :: [(Int, Int, Int)]
+rainbowColour =
+  [ (148, 0, 211),
+    (75, 0, 130),
+    (0, 0, 255),
+    -- (0, 255, 0),
+    -- (255, 255, 0),
+    (255, 127, 0),
+    (255, 0, 0)
+  ]
+
+rgbColour r g b = "\x1b[38;2;" ++ show r ++ ";" ++ show g ++ ";" ++ show b ++ "m"
 
 instance Colour ReduceInfo where
   colour ReduceInfo {substituted = Just _} = "\x1b[32m"
   colour ReduceInfo {substituted = Nothing} = ""
-  rainbowP ReduceInfo {rainbow = v} = "\x1b[" ++ show (31 + (v `mod` 6)) ++ "m"
-  addColour ReduceInfo {rainbow = v, substituted} = ReduceInfo {substituted, rainbow = v + 1}
+
+  -- rainbowP ReduceInfo {} = ""
+
+  -- rainbowP ReduceInfo {rainbow = v} = "\x1b[" ++ show (33 + (v `mod` 3)) ++ "m"
+  rainbowP ReduceInfo {rainbow = v} = let (r, g, b) = rainbowColour !! (v `mod` length rainbowColour) in rgbColour r g b
+  updateP ReduceInfo {rainbow = v, substituted} = ReduceInfo {substituted, rainbow = v + 1}
   reset = const "\x1b[0m"
 
 -- Print non verbose
 instance (Colour a) => Show (Expr a) where
   show (Var {name = x, info}) = colour info ++ [x] ++ reset info
-  -- show (App fun arg) = "(" ++ show fun ++ " " ++ show arg ++ ")"
   show (App {info, function = m, input = n}) = colour info ++ mPrint ++ " " ++ nPrint ++ reset info
     where
-      addParantheses str = rainbowP info ++ "(" ++ reset info ++ colour info ++ str ++ rainbowP info ++ ")" ++ reset info
       mPrint = case m of
-        Abs {} -> addParantheses (show (addColour <$> m))
+        Abs {} -> parantheses $ show $ updateP <$> m
         _ -> show m
       nPrint = case n of
         Var {} -> show n
-        _ -> addParantheses (show (addColour <$> n))
-  -- show (Abs var body) = "(λ" ++ [var] ++ "." ++ show body ++ ")"
+        _ -> parantheses $ show $ updateP <$> n
+      parantheses str = concat [rainbowP info, colour info, "(", reset info, colour info, str, rainbowP info, colour info, ")", reset info]
   show (Abs {info, bind, body}) = colour info ++ "λ" ++ bind : vars ++ "." ++ show inner_body ++ reset info
     where
       flattenAbs :: Expr a -> (Expr a, [Char])
@@ -88,21 +104,21 @@ instance (Colour a) => Show (Expr a) where
 -- x and y are variables
 -- Inside t, x replaces r
 substitution :: Expr ReduceInfo -> Char -> Expr ReduceInfo -> Expr ReduceInfo
-substitution (Var {info, name = t}) x r
+substitution (Var {info, name}) x r
   -- x[x := r] -> r
-  | t == x = r
+  | name == x = r
   -- y[x := r] -> y, if x != y
-  | otherwise = Var info t
+  | otherwise = Var info name
 -- (t s)[x := r] -> (t[x := r])(s[x := r])
 substitution (App {info, function = t, input = s}) x r = App info (substitution t x r) (substitution s x r)
-substitution abstraction@(Abs {info, bind = v, body = t}) x r
+substitution abst@(Abs {info, bind = v, body = t}) x r
   -- (λx.t)[x := r] -> λx.t
-  | v == x = abstraction
+  | v == x = abst
   -- (λy.t)[x := r] -> λy.(t[x := r]), if y is not equal to x and y does not appear in the free
   -- variables of r
-  | v /= x && v `notElem` freeVariables r = Abs info v (substitution t x r)
+  | v /= x && v `notElem` freeVars r = Abs info v (substitution t x r)
   -- Must alpha reduce here to avoid name collisions
-  | otherwise = substitution (aConversion abstraction (freeVariables r)) x r
+  | otherwise = substitution (aConversion abst (freeVars r)) x r
 
 -- (λx.t) s -> t[x := s]
 bReduction :: Expr ReduceInfo -> Expr ReduceInfo
@@ -111,30 +127,44 @@ bReduction (Abs {info, bind, body}) = Abs info bind (bReduction body)
 bReduction (App {info, function, input}) = App info (bReduction function) (bReduction input)
 bReduction a = a
 
+-- (λx.t) s -> t[x := s]
+bReductionFull :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
+bReductionFull (App {function = (Abs {bind, body}), input = x}) = Just $ substitution body bind (replacedBind bind <$ x)
+bReductionFull (Abs {info, bind, body}) = Abs info bind <$> bReductionFull body
+bReductionFull (App {info, function, input}) = ((\x -> App info x input) <$> bReductionFull function) <|> (App info function <$> bReductionFull input)
+bReductionFull _ = Nothing
+
 aConversion :: Expr ReduceInfo -> [Char] -> Expr ReduceInfo
-aConversion abstr@(Abs {info, bind, body}) free_vars = Abs info suitable_char (substitution body bind (Var info suitable_char))
+aConversion abst@(Abs {info, bind, body}) free_vars = Abs info suitable_char (substitution body bind (Var info suitable_char))
   where
-    disallowed_chars = variables abstr `union` free_vars
+    disallowed_chars = variables abst `union` free_vars
     suitable_char = head [x | x <- ['a' .. 'z'], x `notElem` disallowed_chars]
 aConversion _ _ = error "Cannot alpha reduce with not an abstraction"
 
-freeVariables :: Expr ReduceInfo -> [Char]
-freeVariables (Abs {bind, body}) = [x | x <- freeVariables body, x /= bind]
-freeVariables (Var {name = x}) = [x]
-freeVariables (App {function = lhs, input = rhs}) = freeVariables lhs `union` freeVariables rhs
+freeVars :: Expr ReduceInfo -> [Char]
+freeVars (Abs {bind, body}) = [x | x <- freeVars body, x /= bind]
+freeVars (Var {name = x}) = [x]
+freeVars (App {function = lhs, input = rhs}) = freeVars lhs `union` freeVars rhs
 
-boundVariables :: Expr ReduceInfo -> [Char]
-boundVariables (Abs {bind, body}) = bind : boundVariables body
-boundVariables (App {function, input}) = boundVariables function `union` boundVariables input
-boundVariables (Var {}) = []
+boundVars :: Expr ReduceInfo -> [Char]
+boundVars (Abs {bind, body}) = bind : boundVars body
+boundVars (App {function, input}) = boundVars function `union` boundVars input
+boundVars (Var {}) = []
 
 variables :: Expr ReduceInfo -> [Char]
-variables x = nub $ freeVariables x ++ boundVariables x
+variables x = nub $ freeVars x ++ boundVars x
 
 steps_to_reduce :: Expr ReduceInfo -> [Expr ReduceInfo]
 steps_to_reduce expression
   | expression == bReduction (notSubstituted <$ expression) = [expression]
   | otherwise = expression : steps_to_reduce (bReduction (notSubstituted <$ expression))
+
+steps_to_reduce_full :: Expr ReduceInfo -> [Expr ReduceInfo]
+steps_to_reduce_full expression
+  | Just exp <- result = expression : steps_to_reduce_full exp
+  | otherwise = [expression]
+  where
+    result = bReductionFull (notSubstituted <$ expression)
 
 debug :: c -> String -> c
 debug = flip trace
@@ -172,7 +202,7 @@ dotSymbol :: Parser ()
 dotSymbol = void $ lexeme (single '.')
 
 parseVariable :: SymbolTable -> Parser (Expr ())
-parseVariable s = (Var () <$> lowerChar) <|> parseChurchEncoding <|> parseAbbreviation s
+parseVariable s = (Var () <$> lowerChar) <|> parseChurchEncoding <|> try (parseAbbreviation s)
 
 parseChurchEncoding :: Parser (Expr ())
 parseChurchEncoding = integerToChurchEncoding <$> parseDigit
@@ -181,20 +211,12 @@ parseDigit :: Parser Int
 parseDigit = L.decimal
 
 parseAbbreviationString :: Parser String
-parseAbbreviationString = (:) <$> upperChar <*> some alphaNumChar
+parseAbbreviationString = ((:) <$> upperChar <*> some alphaNumChar) <|> some symbolChar <|> some punctuationChar -- FIXME: This includes paranthesis
 
 parseAbbreviation :: SymbolTable -> Parser (Expr ())
 parseAbbreviation s = do
   str <- parseAbbreviationString
-  return (s Map.! str)
-
--- if str == "True"
---   then
---     return $ Abs 'x' (Abs 'y' (Var 'x'))
---   else
---     -- Come back when finished
---     -- the custom errors in megaparsec tutorial
---     fail ("Undefined abbreviation: " ++ str)
+  maybe (fail "ok") return (Map.lookup str s)
 
 parseApplication :: SymbolTable -> Parser (Expr ())
 parseApplication s = do
@@ -225,5 +247,6 @@ defaultSymbolTable =
   Map.fromList
     [ ("True", Abs () 'x' (Abs () 'y' (Var () 'x'))),
       ("False", Abs () 'x' (Abs () 'y' (Var () 'y'))),
-      ("IfThen", Abs () 'b' (Abs () 'x' (Abs () 'y' (App () (App () (Var () 'b') (Var () 'x')) (Var () 'y')))))
+      ("IfThen", Abs () 'b' (Abs () 'x' (Abs () 'y' (App () (App () (Var () 'b') (Var () 'x')) (Var () 'y'))))),
+      ("*", Abs () 'm' (Abs () 'n' (Abs () 'f' (App () (Var () 'm') (App () (Var () 'n') (Var () 'f'))))))
     ]

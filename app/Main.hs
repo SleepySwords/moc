@@ -6,15 +6,13 @@ module Main where
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Functor (void)
-import Data.List (intercalate)
-import Data.Text (justifyRight, pack)
-import qualified Data.Text.IO
-import GHC.IO.Handle (hFlush)
-import GHC.IO.Handle.FD (stdout)
-import ModelComputation.LambdaCalculus (Expr (Abs, App, Var, body, function, info, input), ReduceInfo (ReduceInfo, substituted), SymbolTable, churchEncodingToInteger, defaultSymbolTable, integerToChurchEncoding, lambdaParser, notSubstituted, steps_to_reduce, steps_to_reduce_full)
+import Data.Text (pack)
 import System.Console.ANSI (getTerminalSize, setCursorColumn)
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStr, outputStrLn, runInputT)
 import Text.Megaparsec (MonadParsec (eof), parse, parseTest)
+import ModelComputation.LambdaCalculus.Parser (SymbolTable, lambdaParser, defaultSymbolTable, parseCommand)
+import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToInteger, integerToChurchEncoding)
+import ModelComputation.LambdaCalculus.Reduction (steps_to_reduce_full, notSubstituted, steps_to_reduce)
 
 main :: IO ()
 main = do
@@ -41,7 +39,7 @@ main = do
 
   print $ integerToChurchEncoding 3
 
-  runInputT defaultSettings repl
+  runInputT defaultSettings (repl symbols)
 
 evaluateLambda :: SymbolTable -> String -> IO ()
 evaluateLambda s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
@@ -99,9 +97,9 @@ findSubstituted hi = case substituted (info hi) of
     Abs {body = b} -> findSubstituted b
     App {function, input} -> findSubstituted function ++ findSubstituted input
 
-repl :: InputT IO ()
-repl = do
+repl :: SymbolTable -> InputT IO ()
+repl s = do
   toEval <- getInputLine "λ> "
-  forM_ toEval (evaluateLambda2 defaultSymbolTable)
+  forM_ toEval (evaluateLambda2 s)
   outputStrLn ""
-  repl
+  repl s

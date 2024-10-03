@@ -12,7 +12,7 @@ import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputSt
 import Text.Megaparsec (MonadParsec (eof), parse, parseTest)
 import ModelComputation.LambdaCalculus.Parser (SymbolTable, lambdaParser, defaultSymbolTable, parseCommand)
 import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToInteger, integerToChurchEncoding)
-import ModelComputation.LambdaCalculus.Reduction (steps_to_reduce_full, notSubstituted, steps_to_reduce)
+import ModelComputation.LambdaCalculus.Reduction (notSubstituted, lambdaReduce, lambdaReduceFull)
 
 main :: IO ()
 main = do
@@ -46,7 +46,7 @@ evaluateLambda s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
   Right expression -> do
     putStrLn ""
     putStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
-    let steps = steps_to_reduce (notSubstituted <$ expression)
+    let steps = lambdaReduce (notSubstituted <$ expression)
     mapM_
       ( \a -> do
           print a
@@ -59,12 +59,12 @@ evaluateLambda s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
       Nothing -> return ()
   Left err -> print err
 
-evaluateLambda2 :: SymbolTable -> String -> InputT IO ()
-evaluateLambda2 s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
+evaluateLambdaFull :: SymbolTable -> String -> InputT IO ()
+evaluateLambdaFull s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
   Right expression -> do
     outputStrLn ""
     outputStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
-    let steps = steps_to_reduce_full (notSubstituted <$ expression)
+    let steps = lambdaReduceFull (notSubstituted <$ expression)
     mapM_
       ( \a -> do
           outputStr (show a)
@@ -100,6 +100,6 @@ findSubstituted hi = case substituted (info hi) of
 repl :: SymbolTable -> InputT IO ()
 repl s = do
   toEval <- getInputLine "λ> "
-  forM_ toEval (evaluateLambda2 s)
+  forM_ toEval (evaluateLambdaFull s)
   outputStrLn ""
   repl s

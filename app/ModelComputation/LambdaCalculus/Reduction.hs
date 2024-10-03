@@ -74,14 +74,14 @@ boundVars (Var {}) = []
 vars :: Expr ReduceInfo -> [Char]
 vars x = nub $ freeVars x ++ boundVars x
 
-steps_to_reduce :: Expr ReduceInfo -> [Expr ReduceInfo]
-steps_to_reduce expression
+lambdaReduce :: Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduce expression
   | expression == bReduction (notSubstituted <$ expression) = [expression]
-  | otherwise = expression : steps_to_reduce (bReduction (notSubstituted <$ expression))
+  | otherwise = expression : lambdaReduce (bReduction (notSubstituted <$ expression))
 
-steps_to_reduce_full :: Expr ReduceInfo -> [Expr ReduceInfo]
-steps_to_reduce_full expression
-  | Just exp <- result = expression : steps_to_reduce_full exp
+lambdaReduceFull :: Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduceFull expression
+  | Just exp <- result = expression : lambdaReduceFull exp
   | otherwise = [expression]
   where
     result = bReductionFull (notSubstituted <$ expression)

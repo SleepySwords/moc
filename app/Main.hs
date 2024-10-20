@@ -6,16 +6,39 @@ module Main where
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Functor (void)
+import Data.Map (insert)
 import Data.Text (pack)
+import ModelComputation.LambdaCalculus.Parser (SymbolTable, defaultSymbolTable, lambdaParser, parseCommand)
+import ModelComputation.LambdaCalculus.Reduction (lambdaReduce, lambdaReduceFull, notSubstituted)
+import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToInteger, integerToChurchEncoding)
+import ModelComputation.Turing (Shift (RightShift), TuringMachine (..), initialiseMachine, step)
 import System.Console.ANSI (getTerminalSize, setCursorColumn)
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStr, outputStrLn, runInputT)
+import System.Exit (exitSuccess)
 import Text.Megaparsec (MonadParsec (eof), parse, parseTest)
-import ModelComputation.LambdaCalculus.Parser (SymbolTable, lambdaParser, defaultSymbolTable, parseCommand)
-import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToInteger, integerToChurchEncoding)
-import ModelComputation.LambdaCalculus.Reduction (notSubstituted, lambdaReduce, lambdaReduceFull)
+import Data.Set (fromList)
 
 main :: IO ()
 main = do
+  let tm =
+        TuringMachine
+          { states = fromList ["b", "c", "e", "f"],
+            tapeAlphabet = fromList ['.'],
+            blank = '.',
+            inputSymbols = fromList [],
+            transitionFunction =
+              [ (("b", '.'), ("c", '0', RightShift)),
+                (("c", '.'), ("e", '.', RightShift)),
+                (("e", '.'), ("f", '1', RightShift)),
+                (("f", '.'), ("b", '.', RightShift))
+              ],
+            initialState = "b",
+            finalStates = fromList ["a"]
+          }
+
+  let stepWithMachine = step tm
+  print $ stepWithMachine $ stepWithMachine $ stepWithMachine $ stepWithMachine $ stepWithMachine $ stepWithMachine $ stepWithMachine $ initialiseMachine tm []
+  exitSuccess
   let symbols = defaultSymbolTable
   parseTest (lambdaParser symbols <* eof) "\\x. x \\a.x \\y.y"
   parseTest (lambdaParser symbols <* eof) "(\\x. (\\a.x \\y.y) x) a"
@@ -39,7 +62,7 @@ main = do
 
   print $ integerToChurchEncoding 3
 
-  runInputT defaultSettings (repl symbols)
+  runInputT defaultSettings (replCommand symbols)
 
 evaluateLambda :: SymbolTable -> String -> IO ()
 evaluateLambda s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
@@ -88,6 +111,36 @@ evaluateLambdaFull s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
       Nothing -> return ()
   Left err -> outputStrLn (show err)
 
+executeCommand :: SymbolTable -> Either (Expr ()) (String, Expr ()) -> (SymbolTable, InputT IO ())
+executeCommand symbolTable (Left expression) = (symbolTable, cmd)
+  where
+    cmd = do
+      outputStrLn ""
+      outputStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
+      let steps = lambdaReduceFull (notSubstituted <$ expression)
+      mapM_
+        ( \a -> do
+            outputStr (show a)
+            liftIO $ do
+              let subMsg = case map (\(ch, ex) -> "Substituted " ++ [ch] ++ ":=" ++ show (void ex)) (findSubstituted a) of
+                    msg : _ -> msg
+                    _ -> []
+
+              Just (_, width) <- getTerminalSize
+              if length (show (void a)) + length subMsg + 30 > width
+                then
+                  putStrLn ""
+                else do
+                  setCursorColumn (max 0 (min (width - length subMsg) (width - 50)))
+                  putStrLn subMsg
+        )
+        steps
+
+      case churchEncodingToInteger (last steps) of
+        Just v -> outputStrLn ("Also known as value " ++ show v)
+        Nothing -> return ()
+executeCommand symbolTable (Right (command, expr)) = (insert command expr symbolTable, outputStrLn ("Inserted " ++ show expr ++ " for " ++ command))
+
 findSubstituted :: Expr ReduceInfo -> [(Char, Expr ReduceInfo)]
 findSubstituted s@Var {info = ReduceInfo {substituted = Just x}} = [(x, s)]
 findSubstituted Var {info = ReduceInfo {substituted = _}} = []
@@ -103,3 +156,16 @@ repl s = do
   forM_ toEval (evaluateLambdaFull s)
   outputStrLn ""
   repl s
+
+replCommand :: SymbolTable -> InputT IO ()
+replCommand symbolT = do
+  toEval <- getInputLine "λ> "
+  let (symbolTable, printMonad) = case toEval of
+        Just s -> case parse (parseCommand symbolT <* eof) "Failed" (pack s) of
+          Right expression -> executeCommand symbolT expression
+          Left err -> (symbolT, outputStrLn (show err))
+        Nothing -> (symbolT, return ())
+  printMonad
+
+  outputStrLn ""
+  replCommand symbolTable

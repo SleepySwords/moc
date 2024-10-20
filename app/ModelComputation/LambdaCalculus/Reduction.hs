@@ -79,6 +79,7 @@ lambdaReduce expression
   | expression == bReduction (notSubstituted <$ expression) = [expression]
   | otherwise = expression : lambdaReduce (bReduction (notSubstituted <$ expression))
 
+-- Potential for a monad unitl?
 lambdaReduceFull :: Expr ReduceInfo -> [Expr ReduceInfo]
 lambdaReduceFull expression
   | Just exp <- result = expression : lambdaReduceFull exp

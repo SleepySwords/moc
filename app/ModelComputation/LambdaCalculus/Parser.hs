@@ -13,10 +13,10 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Data.Void (Void)
 import ModelComputation.LambdaCalculus.Types (Expr (Abs, App, Var), integerToChurchEncoding)
-import Text.Megaparsec (MonadParsec (try), Parsec, between, single)
-import Text.Megaparsec.Byte (string)
+import Text.Megaparsec (MonadParsec (try), Parsec, between, single, many)
 import Text.Megaparsec.Char (alphaNumChar, lowerChar, punctuationChar, space1, symbolChar, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec.Char.Lexer ()
 
 type SymbolTable = Map String (Expr ())
 
@@ -27,6 +27,9 @@ sc = L.space space1 (L.skipLineComment "//") (L.skipBlockComment "-[" " ]-")
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
+
+symbol :: Text -> Parser Text
+symbol = L.symbol sc
 
 lambdaSymbol :: Parser ()
 lambdaSymbol = void $ lexeme (single '\\') <|> lexeme (single 'λ')
@@ -44,12 +47,12 @@ parseDigit :: Parser Int
 parseDigit = L.decimal
 
 parseBindString :: Parser String
-parseBindString = ((:) <$> upperChar <*> some alphaNumChar) <|> some symbolChar <|> some punctuationChar -- FIXME: This includes paranthesis
+parseBindString = ((:) <$> upperChar <*> many alphaNumChar) <|> some symbolChar <|> some punctuationChar -- FIXME: This includes paranthesis
 
 parseAbbreviation :: SymbolTable -> Parser (Expr ())
 parseAbbreviation s = do
   str <- parseBindString
-  maybe (fail "ok") return (Map.lookup str s)
+  maybe (fail ("Could not find the abrreviation " ++ str)) return (Map.lookup str s)
 
 parseApplication :: SymbolTable -> Parser (Expr ())
 parseApplication s = do
@@ -75,10 +78,10 @@ lambdaParser :: SymbolTable -> Parser (Expr ())
 lambdaParser s = try (parseApplication s) <|> term s
 
 parseBind :: SymbolTable -> Parser (String, Expr ())
-parseBind s = (,) <$> parseBindString <* string ":=" <*> lambdaParser s
+parseBind s = (,) <$> parseBindString <* many space1 <* symbol ":=" <*> lambdaParser s
 
 parseCommand :: SymbolTable -> Parser (Either (Expr ()) (String, Expr ()))
-parseCommand s = (Left <$> lambdaParser s) <|> (Right <$> parseBind s)
+parseCommand s = try (Right <$> parseBind s) <|> (Left <$> lambdaParser s)
 
 -- Consider using a parser expr
 defaultSymbolTable :: Map String (Expr ())

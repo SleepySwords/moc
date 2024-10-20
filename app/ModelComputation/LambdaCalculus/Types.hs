@@ -69,14 +69,15 @@ instance (Colour a) => Show (Expr a) where
         Var {} -> show n
         _ -> parantheses $ show $ updateP <$> n
       parantheses str = concat [rainbowP info, colour info, "(", reset info, colour info, str, rainbowP info, colour info, ")", reset info]
-  show (Abs {info, bind, body}) = colour info ++ "λ" ++ bind : vars ++ "." ++ show inner_body ++ reset info
-    where
-      flattenAbs :: Expr a -> (Expr a, [Char])
-      flattenAbs (Abs {bind = v, body = b}) =
-        let (ib, vs) = flattenAbs b
-         in (ib, v : vs)
-      flattenAbs e = (e, [])
-      (inner_body, vars) = flattenAbs body
+  show (Abs {info, bind, body}) = colour info ++ "λ" ++ [bind] ++ "." ++ show body ++ reset info
+  -- show (Abs {info, bind, body}) = colour info ++ "λ" ++ bind : vars ++ "." ++ show inner_body ++ reset info
+  --   where
+  --     flattenAbs :: Expr a -> (Expr a, [Char])
+  --     flattenAbs (Abs {bind = v, body = b}) =
+  --       let (ib, vs) = flattenAbs b
+  --        in (ib, v : vs)
+  --     flattenAbs e = (e, [])
+  --     (inner_body, vars) = flattenAbs body
 
 
 integerToChurchEncoding :: Int -> Expr ()

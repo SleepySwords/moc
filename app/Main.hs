@@ -6,7 +6,7 @@ import Data.Set (fromList)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
-import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), runMachine)
+import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine)
 import System.Console.Haskeline (defaultSettings, runInputT)
 import System.Environment (getArgs)
 import Text.Megaparsec (MonadParsec (eof), parseTest)
@@ -77,5 +77,5 @@ parseArgument ["turing"] = do
             finalStates = fromList ["q3"]
           }
 
-  print $ runMachine addition "0c00"
+  mapM_ (putStrLn . printState addition) (runMachine addition "0c00")
 parseArgument _ = putStrLn "Unknown mode: Use either lambda or turing"

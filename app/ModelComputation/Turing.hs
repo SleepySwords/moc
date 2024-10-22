@@ -6,7 +6,7 @@ import Control.Lens
 import Data.List (intercalate)
 import Data.Maybe (fromJust, fromMaybe)
 import Data.Set (Set, isSubsetOf)
-import Debug.Trace (trace)
+import Utils (scanUntil)
 
 type Symbol = Char
 
@@ -43,33 +43,37 @@ verifyMachine TuringMachine {blank, tapeAlphabet, inputSymbols, states, initialS
     && initialState `elem` states
     && finalStates `isSubsetOf` states
 
-debug = flip trace
-
-printState :: (Tape, State, Int) -> (State, Symbol, Shift) -> String
-printState (tape, state, position) (newState, newSymbol, shift) =
+printState :: TuringMachine -> (Tape, State, Int) -> String
+printState turingMachine (tape, state, position) =
   intercalate
-    ","
+    "\n"
     [ replicate position ' '
         ++ "▾"
         ++ state
-        ++ " -> "
-        ++ intercalate "," [newState, [newSymbol], show shift],
+        ++ transitionString function,
       tape,
       []
     ]
-
--- FIXME: hacky debug statement, do this properly.
-step :: TuringMachine -> (Tape, State, Int) -> (Tape, State, Int)
-step turingMachine currentState@(tape, state, position) = (newTape, newState, newPosition) `debug` printState currentState transitionResult
   where
     tapeSymbol = fromMaybe (blank turingMachine) (tape ^? element position)
-    transitionResult@(newState, newSymbol, shift) = fromJust $ lookup (state, tapeSymbol) $ transitionFunction turingMachine
+    function = lookup (state, tapeSymbol) $ transitionFunction turingMachine
+    transitionString (Just (newState, newSymbol, shift)) =
+      " -> "
+        ++ intercalate "," [newState, [newSymbol], show shift]
+    transitionString Nothing =
+      ""
+
+step :: TuringMachine -> (Tape, State, Int) -> (Tape, State, Int)
+step turingMachine (tape, state, position) = (newTape, newState, newPosition)
+  where
+    tapeSymbol = fromMaybe (blank turingMachine) (tape ^? element position)
+    (newState, newSymbol, shift) = fromJust $ lookup (state, tapeSymbol) $ transitionFunction turingMachine
     newTape = take position tape ++ newSymbol : drop (position + 1) tape
     newPosition = case shift of
       LeftShift -> position - 1
       RightShift -> position + 1
 
-runMachine :: TuringMachine -> Tape -> Tape
-runMachine turingMachine tape = finalTape
+runMachine :: TuringMachine -> Tape -> [(Tape, State, Int)]
+runMachine turingMachine tape = states
   where
-    (finalTape, _, _) = until (\(_, state, _) -> state `elem` finalStates turingMachine) (step turingMachine) (initialiseMachine turingMachine tape)
+    states = scanUntil (\(_, state, _) -> state `elem` finalStates turingMachine) (step turingMachine) (initialiseMachine turingMachine tape)

@@ -2,7 +2,7 @@
 
 Having fun with different models!!
 
-## Currently supported models
+## The models
 
 - Turing machine
     - Does not have a parser currently, so you must edit the code directly

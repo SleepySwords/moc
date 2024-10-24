@@ -19,23 +19,27 @@ parseArgument ["lambda"] = do
   let symbols = defaultSymbolTable
   parseTest (lambdaParser symbols <* eof) "\\x. x \\a.x \\y.y"
   parseTest (lambdaParser symbols <* eof) "(\\x. (\\a.x \\y.y) x) a"
-  evaluateLambda symbols "(\\x. x \\x.x) a"
   parseTest (lambdaParser symbols <* eof) "\\xy.x"
   parseTest (lambdaParser symbols <* eof) "\\xy.x a v"
   parseTest (lambdaParser symbols <* eof) "λf.λx.f (f (f x))"
-  evaluateLambda symbols "(λp.λa.λb.p b a) λx.λy.y"
-  evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
+  runInputT
+    defaultSettings
+    ( do
+        evaluateLambda symbols "(\\x. x \\x.x) a"
+        evaluateLambda symbols "(λp.λa.λb.p b a) λx.λy.y"
+        evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
 
-  evaluateLambda symbols "(λpq.p q p) (λxy.y) (λxy.y)"
-  evaluateLambda symbols "(λx.(\\x.x) x)"
-  evaluateLambda symbols "(λy.(\\x.y)) x"
-  evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
-  evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) 3 12"
-  evaluateLambda symbols "(λxyz.x y z) (λx.x x) (λx.x) x"
-  evaluateLambda symbols "(\\bxy.b x y) True 1 0"
-  evaluateLambda symbols "IfThen False 1 100"
-  evaluateLambda symbols "(\\xy.x y) y"
-  evaluateLambda symbols "10"
+        evaluateLambda symbols "(λpq.p q p) (λxy.y) (λxy.y)"
+        evaluateLambda symbols "(λx.(\\x.x) x)"
+        evaluateLambda symbols "(λy.(\\x.y)) x"
+        evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
+        evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) 3 12"
+        evaluateLambda symbols "(λxyz.x y z) (λx.x x) (λx.x) x"
+        evaluateLambda symbols "(\\bxy.b x y) True 1 0"
+        evaluateLambda symbols "IfThen False 1 100"
+        evaluateLambda symbols "(\\xy.x y) y"
+        evaluateLambda symbols "10"
+    )
 
   print $ integerToChurchEncoding 3
 
@@ -47,7 +51,7 @@ parseArgument ["turing"] = do
             tapeAlphabet = fromList ['.'],
             blank = '.',
             inputSymbols = fromList [],
-            transitionFunction =
+            transitionFunctions =
               [ (("b", '.'), ("c", '0', RightShift)),
                 (("c", '.'), ("e", '.', RightShift)),
                 (("e", '.'), ("f", '1', RightShift)),
@@ -62,7 +66,7 @@ parseArgument ["turing"] = do
             tapeAlphabet = fromList ['.', '0', 'c'],
             blank = '.',
             inputSymbols = fromList [],
-            transitionFunction =
+            transitionFunctions =
               [ (("q0", '0'), ("q1", 'X', RightShift)),
                 (("q0", 'c'), ("q3", '.', RightShift)),
                 (("q1", '0'), ("q1", '0', RightShift)),

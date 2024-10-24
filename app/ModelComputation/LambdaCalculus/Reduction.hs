@@ -47,6 +47,9 @@ bReduction a = a
 -- (λx.t) s -> t[x := s]
 -- FIXME: Substitutes the outside first, it would be nicer if we substitute the inside first.
 -- IE: breduce the input and the function in the top one.
+--
+-- This manages to do above, but is ugly asf
+-- also badly named
 bReductionFull :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
 -- bReductionFull (App {function = (Abs {bind, body}), input = x}) = Just $ substitution body bind (replacedBind bind <$ x)
 bReductionFull (App {info, function = function@(Abs {bind, body}), input = x}) = (((\a -> App info a x) <$> bReductionFull function) <|> (App info function <$> bReductionFull x)) <|> Just (substitution body bind (replacedBind bind <$ x))

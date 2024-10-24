@@ -22,12 +22,14 @@ instance Show Shift where
 
 type Tape = [Symbol]
 
+type TransitionFunction = ((State, Symbol), (State, Symbol, Shift))
+
 data TuringMachine = TuringMachine
   { states :: Set State,
     tapeAlphabet :: Symbols,
     blank :: Symbol,
     inputSymbols :: Symbols,
-    transitionFunction :: [((State, Symbol), (State, Symbol, Shift))],
+    transitionFunctions :: [TransitionFunction],
     initialState :: State,
     finalStates :: Set State
   }
@@ -43,6 +45,9 @@ verifyMachine TuringMachine {blank, tapeAlphabet, inputSymbols, states, initialS
     && initialState `elem` states
     && finalStates `isSubsetOf` states
 
+transitionFunction :: TuringMachine -> (State, Symbol) -> Maybe (State, Symbol, Shift)
+transitionFunction turingMachine l = lookup l $ transitionFunctions turingMachine
+
 printState :: TuringMachine -> (Tape, State, Int) -> String
 printState turingMachine (tape, state, position) =
   intercalate
@@ -50,24 +55,21 @@ printState turingMachine (tape, state, position) =
     [ replicate position ' '
         ++ "▾"
         ++ state
-        ++ transitionString function,
+        ++ context,
       tape,
       []
     ]
   where
     tapeSymbol = fromMaybe (blank turingMachine) (tape ^? element position)
-    function = lookup (state, tapeSymbol) $ transitionFunction turingMachine
-    transitionString (Just (newState, newSymbol, shift)) =
-      " -> "
-        ++ intercalate "," [newState, [newSymbol], show shift]
-    transitionString Nothing =
-      ""
+    context = maybe "" contextString (transitionFunction turingMachine (state, tapeSymbol))
+    contextString (newState, newSymbol, shift) =
+      " -> " ++ intercalate "," [newState, [newSymbol], show shift]
 
 step :: TuringMachine -> (Tape, State, Int) -> (Tape, State, Int)
 step turingMachine (tape, state, position) = (newTape, newState, newPosition)
   where
     tapeSymbol = fromMaybe (blank turingMachine) (tape ^? element position)
-    (newState, newSymbol, shift) = fromJust $ lookup (state, tapeSymbol) $ transitionFunction turingMachine
+    (newState, newSymbol, shift) = fromJust $ transitionFunction turingMachine (state, tapeSymbol)
     newTape = take position tape ++ newSymbol : drop (position + 1) tape
     newPosition = case shift of
       LeftShift -> position - 1

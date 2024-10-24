@@ -1,5 +1,7 @@
 # Memories of Chaos (Models of Computation)
 
+Having fun with different models!!
+
 ## Currently supported models
 
 - Turing machine

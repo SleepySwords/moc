@@ -35,7 +35,7 @@ data TuringMachine = TuringMachine
   }
 
 initialiseMachine :: TuringMachine -> Tape -> (Tape, State, Int)
-initialiseMachine machine tape = (tape, initialState machine, 0)
+initialiseMachine tm tape = (tape, initialState tm, 0)
 
 -- FIXME: verify transitionFunction
 verifyMachine :: TuringMachine -> Bool
@@ -46,10 +46,10 @@ verifyMachine TuringMachine {blank, tapeAlphabet, inputSymbols, states, initialS
     && finalStates `isSubsetOf` states
 
 transitionFunction :: TuringMachine -> (State, Symbol) -> Maybe (State, Symbol, Shift)
-transitionFunction turingMachine l = lookup l $ transitionFunctions turingMachine
+transitionFunction tm l = lookup l $ transitionFunctions tm
 
 printState :: TuringMachine -> (Tape, State, Int) -> String
-printState turingMachine (tape, state, position) =
+printState tm (tape, state, position) =
   intercalate
     "\n"
     [ replicate position ' '
@@ -60,22 +60,22 @@ printState turingMachine (tape, state, position) =
       []
     ]
   where
-    tapeSymbol = fromMaybe (blank turingMachine) (tape ^? element position)
-    context = maybe "" contextString (transitionFunction turingMachine (state, tapeSymbol))
+    tapeSymbol = fromMaybe (blank tm) (tape ^? element position)
+    context = maybe "" contextString (transitionFunction tm (state, tapeSymbol))
     contextString (newState, newSymbol, shift) =
       " -> " ++ intercalate "," [newState, [newSymbol], show shift]
 
 step :: TuringMachine -> (Tape, State, Int) -> (Tape, State, Int)
-step turingMachine (tape, state, position) = (newTape, newState, newPosition)
+step tm (tape, state, position) = (newTape, newState, newPosition)
   where
-    tapeSymbol = fromMaybe (blank turingMachine) (tape ^? element position)
-    (newState, newSymbol, shift) = fromJust $ transitionFunction turingMachine (state, tapeSymbol)
+    tapeSymbol = fromMaybe (blank tm) (tape ^? element position)
+    (newState, newSymbol, shift) = fromJust $ transitionFunction tm (state, tapeSymbol)
     newTape = take position tape ++ newSymbol : drop (position + 1) tape
     newPosition = case shift of
       LeftShift -> position - 1
       RightShift -> position + 1
 
 runMachine :: TuringMachine -> Tape -> [(Tape, State, Int)]
-runMachine turingMachine tape = states
+runMachine tm tape = states
   where
-    states = scanUntil (\(_, state, _) -> state `elem` finalStates turingMachine) (step turingMachine) (initialiseMachine turingMachine tape)
+    states = scanUntil (\(_, state, _) -> state `elem` finalStates tm) (step tm) (initialiseMachine tm tape)

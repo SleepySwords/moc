@@ -5,9 +5,10 @@ module Main where
 import Data.Set (fromList)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser)
+import ModelComputation.LambdaCalculus.Reduction (lambdaReduceGreedy)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine)
-import System.Console.Haskeline (defaultSettings, runInputT)
+import System.Console.Haskeline (defaultSettings, outputStrLn, runInputT)
 import System.Environment (getArgs)
 import Text.Megaparsec (MonadParsec (eof), parseTest)
 
@@ -25,25 +26,27 @@ parseArgument ["lambda"] = do
   runInputT
     defaultSettings
     ( do
-        evaluateLambda symbols "(\\x. x \\x.x) a"
-        evaluateLambda symbols "(λp.λa.λb.p b a) λx.λy.y"
-        evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
+        run "(\\x. x \\x.x) a"
+        run "(λp.λa.λb.p b a) λx.λy.y"
+        run "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
 
-        evaluateLambda symbols "(λpq.p q p) (λxy.y) (λxy.y)"
-        evaluateLambda symbols "(λx.(\\x.x) x)"
-        evaluateLambda symbols "(λy.(\\x.y)) x"
-        evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
-        evaluateLambda symbols "(λm.λn.λf.λx.m f (n f x)) 3 12"
-        evaluateLambda symbols "(λxyz.x y z) (λx.x x) (λx.x) x"
-        evaluateLambda symbols "(\\bxy.b x y) True 1 0"
-        evaluateLambda symbols "IfThen False 1 100"
-        evaluateLambda symbols "(\\xy.x y) y"
-        evaluateLambda symbols "10"
+        run "(λpq.p q p) (λxy.y) (λxy.y)"
+        run "(λx.(\\x.x) x)"
+        run "(λy.(\\x.y)) x"
+        run "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
+        run "(λm.λn.λf.λx.m f (n f x)) 3 12"
+        run "(λxyz.x y z) (λx.x x) (λx.x) x"
+        run "(\\bxy.b x y) True 1 0"
+        run "IfThen False 1 100"
+        run "(\\xy.x y) y"
+        run "10"
     )
 
   print $ integerToChurchEncoding 3
 
   runInputT defaultSettings (replCommand symbols)
+  where
+    run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
 parseArgument ["turing"] = do
   let tm =
         TuringMachine

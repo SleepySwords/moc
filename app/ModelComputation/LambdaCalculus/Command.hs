@@ -6,32 +6,24 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Functor (void)
 import Data.Map (insert)
-import Data.Text (pack)
+import Data.Text (Text, pack)
+import Data.Void (Void)
 import ModelComputation.LambdaCalculus.Parser (SymbolTable, lambdaParser, parseCommand)
 import ModelComputation.LambdaCalculus.Reduction
 import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToInteger)
 import System.Console.ANSI (getTerminalSize, setCursorColumn)
 import System.Console.Haskeline
 import Text.Megaparsec (MonadParsec (eof), parse)
+import Text.Megaparsec.Error (ParseErrorBundle)
 
--- These are misnamed, they should be parseAndEvaluateLambda
-evaluateLambda :: SymbolTable -> String -> InputT IO ()
-evaluateLambda s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
-  Right expression -> do
-    evaluateLambdaO lambdaReduce expression
-  Left err -> outputStrLn (show err)
+parseLambda :: SymbolTable -> String -> Either (ParseErrorBundle Text Void) (Expr ())
+parseLambda s = parse (lambdaParser s <* eof) "Failed" . pack
 
-evaluateLambdaFull :: SymbolTable -> String -> InputT IO ()
-evaluateLambdaFull s x = case parse (lambdaParser s <* eof) "Failed" (pack x) of
-  Right expression -> do
-    evaluateLambdaO lambdaReduceFull expression
-  Left err -> outputStrLn (show err)
-
-evaluateLambdaO :: (Expr ReduceInfo -> [Expr ReduceInfo]) -> Expr () -> InputT IO ()
-evaluateLambdaO reductionFunction expression = do
+evaluateLambda :: (Expr ReduceInfo -> [Expr ReduceInfo]) -> Expr () -> InputT IO ()
+evaluateLambda reduceFunction expression = do
   outputStrLn ""
   outputStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
-  let steps = reductionFunction (notSubstituted <$ expression)
+  let steps = reduceFunction (noSub <$ expression)
   mapM_ printLambdaWithContext steps
 
   case churchEncodingToInteger (last steps) of
@@ -55,22 +47,22 @@ printLambdaWithContext a = do
         putStrLn subMsg
 
 executeCommand :: SymbolTable -> Either (Expr ()) (String, Expr ()) -> (SymbolTable, InputT IO ())
-executeCommand symbolTable (Left expression) = (symbolTable, evaluateLambdaO lambdaReduceFull expression)
+executeCommand symbolTable (Left expression) = (symbolTable, evaluateLambda lambdaReduceNonGreedy expression)
 executeCommand symbolTable (Right (command, expr)) = (insert command expr symbolTable, outputStrLn ("Inserted " ++ show expr ++ " for " ++ command))
 
 findSubstituted :: Expr ReduceInfo -> [(Char, Expr ReduceInfo)]
 findSubstituted s@Var {info = ReduceInfo {substituted = Just x}} = [(x, s)]
 findSubstituted Var {info = ReduceInfo {substituted = _}} = []
-findSubstituted hi = case substituted (info hi) of
-  Just o -> [(o, hi)]
-  Nothing -> case hi of
+findSubstituted s = case substituted (info s) of
+  Just o -> [(o, s)]
+  Nothing -> case s of
     Abs {body = b} -> findSubstituted b
     App {function, input} -> findSubstituted function ++ findSubstituted input
 
 repl :: SymbolTable -> InputT IO ()
 repl s = do
   toEval <- getInputLine "λ> "
-  forM_ toEval (evaluateLambdaFull s)
+  forM_ toEval (either (outputStrLn . show) (evaluateLambda lambdaReduceNonGreedy) . parseLambda s)
   outputStrLn ""
   repl s
 

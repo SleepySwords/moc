@@ -6,12 +6,12 @@
 
 module ModelComputation.LambdaCalculus.Reduction where
 
-import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
 import Control.Applicative
-import Data.List (union, nub)
+import Data.List (nub, union)
+import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
 
-notSubstituted :: ReduceInfo
-notSubstituted = ReduceInfo {substituted = Nothing, rainbow = 0}
+noSub :: ReduceInfo
+noSub = ReduceInfo {substituted = Nothing, rainbow = 0}
 
 replacedBind :: Char -> ReduceInfo
 replacedBind x = ReduceInfo {substituted = Just x, rainbow = 0}
@@ -38,24 +38,23 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
   | otherwise = substitution (aConversion abst (freeVars r)) x r
 
 -- (λx.t) s -> t[x := s]
-bReduction :: Expr ReduceInfo -> Expr ReduceInfo
-bReduction (App {function = (Abs {bind, body}), input = x}) = substitution body bind (replacedBind bind <$ x)
-bReduction (Abs {info, bind, body}) = Abs info bind (bReduction body)
-bReduction (App {info, function, input}) = App info (bReduction function) (bReduction input)
-bReduction a = a
+bReduceGreedy :: Expr ReduceInfo -> Expr ReduceInfo
+bReduceGreedy (App {function = (Abs {bind, body}), input = x}) = substitution body bind (replacedBind bind <$ x)
+bReduceGreedy (Abs {info, bind, body}) = Abs info bind (bReduceGreedy body)
+bReduceGreedy (App {info, function, input}) = App info (bReduceGreedy function) (bReduceGreedy input)
+bReduceGreedy a = a
 
 -- (λx.t) s -> t[x := s]
--- FIXME: Substitutes the outside first, it would be nicer if we substitute the inside first.
--- IE: breduce the input and the function in the top one.
---
--- This manages to do above, but is ugly asf
--- also badly named
-bReductionFull :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
--- bReductionFull (App {function = (Abs {bind, body}), input = x}) = Just $ substitution body bind (replacedBind bind <$ x)
-bReductionFull (App {info, function = function@(Abs {bind, body}), input = x}) = (((\a -> App info a x) <$> bReductionFull function) <|> (App info function <$> bReductionFull x)) <|> Just (substitution body bind (replacedBind bind <$ x))
-bReductionFull (App {info, function, input}) = ((\x -> App info x input) <$> bReductionFull function) <|> (App info function <$> bReductionFull input)
-bReductionFull (Abs {info, bind, body}) = Abs info bind <$> bReductionFull body
-bReductionFull _ = Nothing
+bReduceNonGreedy :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
+bReduceNonGreedy (App {info, function = f@(Abs {bind, body}), input = x}) =
+  (\a -> App info a x) <$> bReduceNonGreedy f
+    <|> App info f <$> bReduceNonGreedy x
+    <|> Just (substitution body bind (replacedBind bind <$ x))
+bReduceNonGreedy (App {info, function = f, input = x}) =
+  (\a -> App info a x) <$> bReduceNonGreedy f
+    <|> App info f <$> bReduceNonGreedy x
+bReduceNonGreedy (Abs {info, bind, body}) = Abs info bind <$> bReduceNonGreedy body
+bReduceNonGreedy _ = Nothing
 
 aConversion :: Expr ReduceInfo -> [Char] -> Expr ReduceInfo
 aConversion abst@(Abs {info, bind, body}) free_vars = Abs info suitable_char (substitution body bind (Var info suitable_char))
@@ -77,15 +76,16 @@ boundVars (Var {}) = []
 vars :: Expr ReduceInfo -> [Char]
 vars x = nub $ freeVars x ++ boundVars x
 
-lambdaReduce :: Expr ReduceInfo -> [Expr ReduceInfo]
-lambdaReduce expression
-  | expression == bReduction (notSubstituted <$ expression) = [expression]
-  | otherwise = expression : lambdaReduce (bReduction (notSubstituted <$ expression))
+lambdaReduceGreedy :: Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduceGreedy expression
+  | expression == result = [expression]
+  | otherwise = expression : lambdaReduceGreedy result
+  where
+    result = bReduceGreedy (noSub <$ expression)
 
--- Potential for a monad unitl?
-lambdaReduceFull :: Expr ReduceInfo -> [Expr ReduceInfo]
-lambdaReduceFull expression
-  | Just exp <- result = expression : lambdaReduceFull exp
+lambdaReduceNonGreedy :: Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduceNonGreedy expression
+  | Just exp <- result = expression : lambdaReduceNonGreedy exp
   | otherwise = [expression]
   where
-    result = bReductionFull (notSubstituted <$ expression)
+    result = bReduceNonGreedy (noSub <$ expression)

@@ -2,10 +2,12 @@
 
 module Main where
 
+import Control.Arrow (Arrow (second))
+import Data.Map (empty, insert, mapEither)
 import Data.Set (fromList)
 import ModelComputation.LambdaCalculus.Command
-import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser)
-import ModelComputation.LambdaCalculus.Reduction (lambdaReduceGreedy)
+import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser, newSymbolTable)
+import ModelComputation.LambdaCalculus.Reduction (lambdaReduceGreedy, lambdaReduceNonGreedy)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine)
 import System.Console.Haskeline (defaultSettings, outputStrLn, runInputT)
@@ -15,9 +17,13 @@ import Text.Megaparsec (MonadParsec (eof), parseTest)
 main :: IO ()
 main = getArgs >>= parseArgument
 
-parseArgument :: [String] -> IO ()
-parseArgument ["lambda"] = do
-  let symbols = defaultSymbolTable
+
+runLambdaMode :: String -> IO ()
+runLambdaMode a = do
+  let symbols = foldl foldF Data.Map.empty newSymbolTable
+        where
+          foldF s (k, l) = either (const s) (\v -> Data.Map.insert k v s) (parseLambda s l)
+  -- let symbols = defaultSymbolTable
   parseTest (lambdaParser symbols <* eof) "\\x. x \\a.x \\y.y"
   parseTest (lambdaParser symbols <* eof) "(\\x. (\\a.x \\y.y) x) a"
   parseTest (lambdaParser symbols <* eof) "\\xy.x"
@@ -44,9 +50,13 @@ parseArgument ["lambda"] = do
 
   print $ integerToChurchEncoding 3
 
-  runInputT defaultSettings (replCommand symbols)
+  runInputT defaultSettings (replCommand (if a == "greedy" then lambdaReduceGreedy else lambdaReduceNonGreedy) symbols)
   where
     run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
+
+parseArgument :: [String] -> IO ()
+parseArgument ["lambda", a] = runLambdaMode a
+parseArgument ["lambda"] = runLambdaMode ""
 parseArgument ["turing"] = do
   let tm =
         TuringMachine

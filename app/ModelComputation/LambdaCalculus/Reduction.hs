@@ -40,19 +40,19 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
 -- (λx.t) s -> t[x := s]
 bReduceGreedy :: Expr ReduceInfo -> Expr ReduceInfo
 bReduceGreedy (App {function = (Abs {bind, body}), input = x}) = substitution body bind (replacedBind bind <$ x)
-bReduceGreedy (Abs {info, bind, body}) = Abs info bind (bReduceGreedy body)
 bReduceGreedy (App {info, function, input}) = App info (bReduceGreedy function) (bReduceGreedy input)
+bReduceGreedy (Abs {info, bind, body}) = Abs info bind (bReduceGreedy body)
 bReduceGreedy a = a
 
 -- (λx.t) s -> t[x := s]
 bReduceNonGreedy :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
 bReduceNonGreedy (App {info, function = f@(Abs {bind, body}), input = x}) =
-  (\a -> App info a x) <$> bReduceNonGreedy f
-    <|> App info f <$> bReduceNonGreedy x
+  App info f <$> bReduceNonGreedy x
+    <|> (\a -> App info a x) <$> bReduceNonGreedy f
     <|> Just (substitution body bind (replacedBind bind <$ x))
 bReduceNonGreedy (App {info, function = f, input = x}) =
-  (\a -> App info a x) <$> bReduceNonGreedy f
-    <|> App info f <$> bReduceNonGreedy x
+  App info f <$> bReduceNonGreedy x
+    <|> (\a -> App info a x) <$> bReduceNonGreedy f
 bReduceNonGreedy (Abs {info, bind, body}) = Abs info bind <$> bReduceNonGreedy body
 bReduceNonGreedy _ = Nothing
 

@@ -24,7 +24,7 @@ evaluateLambda reduceFunction expression = do
   outputStrLn ""
   outputStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
   let steps = reduceFunction (noSub <$ expression)
-  mapM_ printLambdaWithContext steps
+  -- mapM_ printLambdaWithContext steps
 
   case churchEncodingToInteger (last steps) of
     Just v -> outputStrLn ("Also known as value " ++ show v)
@@ -46,9 +46,9 @@ printLambdaWithContext a = do
         setCursorColumn (max 0 (min (width - length subMsg) (width - 50)))
         putStrLn subMsg
 
-executeCommand :: SymbolTable -> Either (Expr ()) (String, Expr ()) -> (SymbolTable, InputT IO ())
-executeCommand symbolTable (Left expression) = (symbolTable, evaluateLambda lambdaReduceNonGreedy expression)
-executeCommand symbolTable (Right (command, expr)) = (insert command expr symbolTable, outputStrLn ("Inserted " ++ show expr ++ " for " ++ command))
+executeCommand ::(Expr ReduceInfo -> [Expr ReduceInfo]) -> SymbolTable -> Either (Expr ()) (String, Expr ()) -> (SymbolTable, InputT IO ())
+executeCommand reduceAlgorithm symbolTable (Left expression) = (symbolTable, evaluateLambda reduceAlgorithm expression)
+executeCommand _ symbolTable (Right (command, expr)) = (insert command expr symbolTable, outputStrLn ("Inserted " ++ show expr ++ " for " ++ command))
 
 findSubstituted :: Expr ReduceInfo -> [(Char, Expr ReduceInfo)]
 findSubstituted s@Var {info = ReduceInfo {substituted = Just x}} = [(x, s)]
@@ -62,19 +62,19 @@ findSubstituted s = case substituted (info s) of
 repl :: SymbolTable -> InputT IO ()
 repl s = do
   toEval <- getInputLine "λ> "
-  forM_ toEval (either (outputStrLn . show) (evaluateLambda lambdaReduceNonGreedy) . parseLambda s)
+  forM_ toEval (either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda s)
   outputStrLn ""
   repl s
 
-replCommand :: SymbolTable -> InputT IO ()
-replCommand symbolT = do
+replCommand :: (Expr ReduceInfo -> [Expr ReduceInfo]) -> SymbolTable -> InputT IO ()
+replCommand reduceAlgorithm symbolT = do
   toEval <- getInputLine "λ> "
   let (symbolTable, printMonad) = case toEval of
         Just s -> case parse (parseCommand symbolT <* eof) "Failed" (pack s) of
-          Right expression -> executeCommand symbolT expression
+          Right expression -> executeCommand reduceAlgorithm symbolT expression
           Left err -> (symbolT, outputStrLn (show err))
         Nothing -> (symbolT, return ())
   printMonad
 
   outputStrLn ""
-  replCommand symbolTable
+  replCommand reduceAlgorithm symbolTable

@@ -92,3 +92,32 @@ defaultSymbolTable =
       ("IfThen", Abs () 'b' (Abs () 'x' (Abs () 'y' (App () (App () (Var () 'b') (Var () 'x')) (Var () 'y'))))),
       ("*", Abs () 'm' (Abs () 'n' (Abs () 'f' (App () (Var () 'm') (App () (Var () 'n') (Var () 'f'))))))
     ]
+
+newSymbolTable :: [(String, String)]
+newSymbolTable =
+    [ ("True", "\\xy.x"),
+      ("False", "\\xy.y"),
+      ("If", "\\bxy.b x y"),
+
+      ("Const", "True"),
+
+      ("For", "\\nf.n f"),
+      ("Y", "\\f.(\\x.f (x x)) (\\x.f (x x))"),
+      ("O", "(\\xy.y (\\z.x x y z)) (\\xy.y (\\z.x x y z))"),
+
+      ("Succ", "\\nfx.f (n f x)"),
+      -- ("+", "\\pq.For p (Succ) q")
+      ("Pred", "λn.λf.λx.n (λg.λh.h (g f)) (λu.x) (λu.u)"),
+      ("+", "(\\pqfx.(p f (q f x)))"),
+      ("*", "\\mnf.m (n f)"),
+      ("IsZero", "\\x.For x (Const False) True"),
+
+      ("Fact", "\\fx.If (IsZero x) 1 (* x (f (Pred x)))"),
+
+
+      ("Pair", "\\xyf.f x y"),
+      ("Fst", "\\p.p True"),
+      ("Snd", "\\p.p False"),
+
+      ("Test", "(YCom) (\\r.r)")
+    ]

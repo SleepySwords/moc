@@ -15,6 +15,7 @@ data Expr a
   | Abs {info :: a, bind :: Char, body :: Expr a}
   deriving (Eq)
 
+-- This is slow need to think
 instance Functor Expr where
   fmap f Var {info, name} = Var (f info) name
   fmap f App {info, function, input} = App (f info) (fmap f function) (fmap f input)
@@ -46,6 +47,7 @@ rainbowColour =
 rgbColour :: Int -> Int -> Int -> String
 rgbColour r g b = "\x1b[38;2;" ++ show r ++ ";" ++ show g ++ ";" ++ show b ++ "m"
 
+-- This is slow need to think
 instance Colour ReduceInfo where
   colour ReduceInfo {substituted = Just _} = "\x1b[32m"
   colour ReduceInfo {substituted = Nothing} = ""

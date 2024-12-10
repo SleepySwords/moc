@@ -33,9 +33,9 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
   | v == x = abst
   -- (λy.t)[x := r] -> λy.(t[x := r]), if y is not equal to x and y does not appear in the free
   -- vars of r
-  | v /= x && v `notElem` freeVars r = Abs info v (substitution t x r)
+  | v /= x && not (isFreeVar r v) = Abs info v (substitution t x r)
   -- Must alpha reduce here to avoid name collisions
-  | otherwise = substitution (aConversion abst (freeVars r)) x r
+  | otherwise = substitution (aConversion abst r) x r
 
 -- (λx.t) s -> t[x := s]
 bReduceGreedy :: Expr ReduceInfo -> Expr ReduceInfo
@@ -56,25 +56,34 @@ bReduceNonGreedy (App {info, function = f, input = x}) =
 bReduceNonGreedy (Abs {info, bind, body}) = Abs info bind <$> bReduceNonGreedy body
 bReduceNonGreedy _ = Nothing
 
-aConversion :: Expr ReduceInfo -> [Char] -> Expr ReduceInfo
-aConversion abst@(Abs {info, bind, body}) free_vars = Abs info suitable_char (substitution body bind (Var info suitable_char))
+aConversion :: Expr ReduceInfo -> Expr ReduceInfo -> Expr ReduceInfo
+aConversion abst@(Abs {info, bind, body}) toSub = Abs info suitable_char (substitution body bind (Var info suitable_char))
   where
-    disallowed_chars = vars abst `union` free_vars
-    suitable_char = head [x | x <- ['a' .. 'z'], x `notElem` disallowed_chars]
+    suitable_char = head [x | x <- ['a' .. 'z'], not $ isVar abst x, not $ isFreeVar toSub x]
 aConversion _ _ = error "Cannot alpha reduce with not an abstraction"
 
-freeVars :: Expr ReduceInfo -> [Char]
+freeVars :: Expr a -> [Char]
 freeVars (Abs {bind, body}) = [x | x <- freeVars body, x /= bind]
 freeVars (Var {name = x}) = [x]
 freeVars (App {function = lhs, input = rhs}) = freeVars lhs `union` freeVars rhs
 
-boundVars :: Expr ReduceInfo -> [Char]
+isFreeVar :: Expr a -> Char -> Bool
+isFreeVar (Abs {bind, body}) a = (bind /= a) && isFreeVar body a
+isFreeVar (Var {name = x}) a = x == a
+isFreeVar (App {function = lhs, input = rhs}) a = isFreeVar lhs a || isFreeVar rhs a
+
+boundVars :: Expr a -> [Char]
 boundVars (Abs {bind, body}) = bind : boundVars body
 boundVars (App {function, input}) = boundVars function `union` boundVars input
 boundVars (Var {}) = []
 
-vars :: Expr ReduceInfo -> [Char]
+vars :: Expr a -> [Char]
 vars x = nub $ freeVars x ++ boundVars x
+
+isVar :: Expr a -> Char -> Bool
+isVar (Abs {body}) a = isVar body a
+isVar (Var {name = x}) a = x == a
+isVar (App {function = lhs, input = rhs}) a = isVar lhs a || isVar rhs a
 
 lambdaReduceGreedy :: Expr ReduceInfo -> [Expr ReduceInfo]
 lambdaReduceGreedy expression

@@ -20,7 +20,7 @@ replacedBind x = ReduceInfo {substituted = Just x, rainbow = 0}
 -- t, s and r are lambda vars
 -- x and y are vars
 -- Inside t, x replaces r
-substitution :: Expr ReduceInfo -> Char -> Expr ReduceInfo -> Expr ReduceInfo
+substitution :: Expr a -> Char -> Expr a -> Expr a
 substitution (Var {info, name}) x r
   -- x[x := r] -> r
   | name == x = r
@@ -56,7 +56,7 @@ bReduceNonGreedy (App {info, function = f, input = x}) =
 bReduceNonGreedy (Abs {info, bind, body}) = Abs info bind <$> bReduceNonGreedy body
 bReduceNonGreedy _ = Nothing
 
-aConversion :: Expr ReduceInfo -> Expr ReduceInfo -> Expr ReduceInfo
+aConversion :: Expr a -> Expr a -> Expr a
 aConversion abst@(Abs {info, bind, body}) toSub = Abs info suitable_char (substitution body bind (Var info suitable_char))
   where
     suitable_char = head [x | x <- ['a' .. 'z'], not $ isVar abst x, not $ isFreeVar toSub x]
@@ -98,3 +98,13 @@ lambdaReduceNonGreedy expression
   | otherwise = [expression]
   where
     result = bReduceNonGreedy (noSub <$ expression)
+
+normalisation :: Expr a -> Expr a
+-- A free variable so do not change anything
+normalisation (Var info x) = Var info x
+normalisation (App {input = input, info = info, function = fun}) = App info (normalisation input) (normalisation fun)
+normalisation (Abs {body = body, info = info, bind = bind}) = Abs info potentialFree (normalisation $ substitution body bind (Var info potentialFree))
+  where
+    -- Using capitals as the parser dissalows capitals and
+    -- hence they cannot conflict (we will have to store the lower case version when memorising).
+    potentialFree = head $ filter (not . isVar body) ['A' .. 'Z']

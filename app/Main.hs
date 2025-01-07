@@ -7,7 +7,7 @@ import Data.Map (empty, insert, mapEither)
 import Data.Set (fromList)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser, newSymbolTable)
-import ModelComputation.LambdaCalculus.Reduction (lambdaReduceGreedy, lambdaReduceNonGreedy)
+import ModelComputation.LambdaCalculus.Reduction (lambdaReduceGreedy, lambdaReduceNonGreedy, normalisation)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine)
 import System.Console.Haskeline (defaultSettings, outputStrLn, runInputT)
@@ -46,6 +46,8 @@ runLambdaMode a = do
         run "IfThen False 1 100"
         run "(\\xy.x y) y"
         run "10"
+        runNormalise "\\x.\\y.x y"
+        runNormalise "\\b.\\a.b a"
     )
 
   print $ integerToChurchEncoding 3
@@ -53,6 +55,7 @@ runLambdaMode a = do
   runInputT defaultSettings (replCommand (if a == "greedy" then lambdaReduceGreedy else lambdaReduceNonGreedy) symbols)
   where
     run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
+    runNormalise = either (outputStrLn . show) (outputStrLn . show . normalisation) . parseLambda defaultSymbolTable
 
 parseArgument :: [String] -> IO ()
 parseArgument ["lambda", a] = runLambdaMode a

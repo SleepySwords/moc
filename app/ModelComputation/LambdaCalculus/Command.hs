@@ -24,7 +24,7 @@ evaluateLambda reduceFunction expression = do
   outputStrLn ""
   outputStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
   let steps = reduceFunction (noSub <$ expression)
-  -- mapM_ printLambdaWithContext steps
+  mapM_ printLambdaWithContext steps
 
   case churchEncodingToInteger (last steps) of
     Just v -> outputStrLn ("Also known as value " ++ show v)

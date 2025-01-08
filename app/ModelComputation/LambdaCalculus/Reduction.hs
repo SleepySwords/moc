@@ -12,6 +12,7 @@ import Data.List (nub, union)
 import Data.Map (Map)
 import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
 import qualified Data.Map as Map
+import Debug.Trace (trace)
 
 type SubstiutionState = State (Map (Expr ReduceInfo) (Expr ReduceInfo))
 
@@ -54,7 +55,7 @@ bReduceGreedyMemo :: Expr ReduceInfo -> SubstiutionState (Expr ReduceInfo)
 bReduceGreedyMemo app@(App {function = (Abs {bind, body}), input = x}) = do
   cacheMap <- get
   case Map.lookup (normalisation app) cacheMap of
-    Just v -> return v
+    Just v -> (flip trace) (return v) "Cache hit"
     Nothing -> do
       let state = substitution body bind (replacedBind bind <$ x)
       put $ Map.insert (normalisation app) state cacheMap

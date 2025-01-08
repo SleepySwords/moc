@@ -6,7 +6,14 @@
 
 module ModelComputation.LambdaCalculus.Types where
 
-data ReduceInfo = ReduceInfo {substituted :: Maybe Char, rainbow :: Int} deriving (Eq, Ord)
+data ReduceInfo = ReduceInfo {substituted :: Maybe Char, rainbow :: Int}
+
+instance Eq ReduceInfo where
+  _ == _ = True
+
+instance Ord ReduceInfo where
+  compare _ _ = EQ
+  
 
 -- Use generics here, parser does not need this info..
 data Expr a

@@ -6,14 +6,14 @@
 
 module ModelComputation.LambdaCalculus.Types where
 
-data ReduceInfo = ReduceInfo {substituted :: Maybe Char, rainbow :: Int} deriving (Eq)
+data ReduceInfo = ReduceInfo {substituted :: Maybe Char, rainbow :: Int} deriving (Eq, Ord)
 
 -- Use generics here, parser does not need this info..
 data Expr a
   = Var {info :: a, name :: Char}
   | App {info :: a, function :: Expr a, input :: Expr a}
   | Abs {info :: a, bind :: Char, body :: Expr a}
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 -- This is slow need to think
 instance Functor Expr where

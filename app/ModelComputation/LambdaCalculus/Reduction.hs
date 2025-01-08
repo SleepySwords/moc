@@ -7,8 +7,13 @@
 module ModelComputation.LambdaCalculus.Reduction where
 
 import Control.Applicative
+import Control.Monad.State (State, runState, get, MonadState (put))
 import Data.List (nub, union)
+import Data.Map (Map)
 import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
+import qualified Data.Map as Map
+
+type SubstiutionState = State (Map (Expr ReduceInfo) (Expr ReduceInfo))
 
 noSub :: ReduceInfo
 noSub = ReduceInfo {substituted = Nothing, rainbow = 0}
@@ -45,7 +50,21 @@ bReduceGreedy (Abs {info, bind, body}) = Abs info bind (bReduceGreedy body)
 bReduceGreedy a = a
 
 -- (λx.t) s -> t[x := s]
+bReduceGreedyMemo :: Expr ReduceInfo -> SubstiutionState (Expr ReduceInfo)
+bReduceGreedyMemo app@(App {function = (Abs {bind, body}), input = x}) = do
+  cacheMap <- get
+  case Map.lookup (normalisation app) cacheMap of
+    Just v -> return v
+    Nothing -> do
+      let state = substitution body bind (replacedBind bind <$ x)
+      put $ Map.insert (normalisation app) state cacheMap
+      return state
+bReduceGreedyMemo (App {info, function, input}) = App info <$> bReduceGreedyMemo function <*> bReduceGreedyMemo input
+bReduceGreedyMemo (Abs {info, bind, body}) = Abs info bind <$> bReduceGreedyMemo body
+bReduceGreedyMemo a = return a
+
 bReduceNonGreedy :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
+-- (λx.t) s -> t[x := s]
 bReduceNonGreedy (App {info, function = f@(Abs {bind, body}), input = x}) =
   App info f <$> bReduceNonGreedy x
     <|> (\a -> App info a x) <$> bReduceNonGreedy f
@@ -91,6 +110,13 @@ lambdaReduceGreedy expression
   | otherwise = expression : lambdaReduceGreedy result
   where
     result = bReduceGreedy (noSub <$ expression)
+
+lambdaReduceGreedyMemo :: Map (Expr ReduceInfo) (Expr ReduceInfo) -> Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduceGreedyMemo cacheMap expression
+  | expression == result = [expression]
+  | otherwise = expression : lambdaReduceGreedyMemo cache result
+  where
+    (result, cache) = runState (bReduceGreedyMemo (noSub <$ expression)) cacheMap
 
 lambdaReduceNonGreedy :: Expr ReduceInfo -> [Expr ReduceInfo]
 lambdaReduceNonGreedy expression

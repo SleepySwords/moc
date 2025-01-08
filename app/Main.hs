@@ -7,12 +7,13 @@ import Data.Map (empty, insert, mapEither)
 import Data.Set (fromList)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser, newSymbolTable)
-import ModelComputation.LambdaCalculus.Reduction (lambdaReduceGreedy, lambdaReduceNonGreedy, normalisation)
+import ModelComputation.LambdaCalculus.Reduction (lambdaReduceGreedy, lambdaReduceNonGreedy, normalisation, lambdaReduceGreedyMemo)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine)
 import System.Console.Haskeline (defaultSettings, outputStrLn, runInputT)
 import System.Environment (getArgs)
 import Text.Megaparsec (MonadParsec (eof), parseTest)
+import qualified Data.Map as Map
 
 main :: IO ()
 main = getArgs >>= parseArgument
@@ -54,7 +55,8 @@ runLambdaMode a = do
 
   runInputT defaultSettings (replCommand (if a == "greedy" then lambdaReduceGreedy else lambdaReduceNonGreedy) symbols)
   where
-    run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
+    run = either (outputStrLn . show) (evaluateLambda (lambdaReduceGreedyMemo Map.empty)) . parseLambda defaultSymbolTable
+    -- run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
     runNormalise = either (outputStrLn . show) (outputStrLn . show . normalisation) . parseLambda defaultSymbolTable
 
 parseArgument :: [String] -> IO ()

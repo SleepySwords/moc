@@ -25,6 +25,7 @@ evaluateLambda reduceFunction expression = do
   outputStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
   let steps = reduceFunction (noSub <$ expression)
   -- mapM_ printLambdaWithContext steps
+  printLambdaWithContext $ last steps
 
   case churchEncodingToInteger (last steps) of
     Just v -> outputStrLn ("Also known as value " ++ show v)
@@ -62,7 +63,7 @@ findSubstituted s = case substituted (info s) of
 repl :: SymbolTable -> InputT IO ()
 repl s = do
   toEval <- getInputLine "λ> "
-  forM_ toEval (either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda s)
+  forM_ toEval (either (outputStrLn . show) (evaluateLambda lambdaReduceNormal) . parseLambda s)
   outputStrLn ""
   repl s
 

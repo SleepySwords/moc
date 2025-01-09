@@ -38,23 +38,23 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
   | otherwise = substitution (aConversion abst r) x r
 
 -- (λx.t) s -> t[x := s]
-bReduceGreedy :: Expr ReduceInfo -> Expr ReduceInfo
-bReduceGreedy (App {function = (Abs {bind, body}), input = x}) = substitution body bind (replacedBind bind <$ x)
-bReduceGreedy (App {info, function, input}) = App info (bReduceGreedy function) (bReduceGreedy input)
-bReduceGreedy (Abs {info, bind, body}) = Abs info bind (bReduceGreedy body)
-bReduceGreedy a = a
+bReduceNormal :: Expr ReduceInfo -> Expr ReduceInfo
+bReduceNormal (App {function = (Abs {bind, body}), input = x}) = substitution body bind (replacedBind bind <$ x)
+bReduceNormal (App {info, function, input}) = App info (bReduceNormal function) (bReduceNormal input)
+bReduceNormal (Abs {info, bind, body}) = Abs info bind (bReduceNormal body)
+bReduceNormal a = a
 
 -- (λx.t) s -> t[x := s]
-bReduceNonGreedy :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
-bReduceNonGreedy (App {info, function = f@(Abs {bind, body}), input = x}) =
-  App info f <$> bReduceNonGreedy x
-    <|> (\a -> App info a x) <$> bReduceNonGreedy f
+bReduceCBV :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
+bReduceCBV (App {info, function = f@(Abs {bind, body}), input = x}) =
+  App info f <$> bReduceCBV x
+    <|> (\a -> App info a x) <$> bReduceCBV f
     <|> Just (substitution body bind (replacedBind bind <$ x))
-bReduceNonGreedy (App {info, function = f, input = x}) =
-  App info f <$> bReduceNonGreedy x
-    <|> (\a -> App info a x) <$> bReduceNonGreedy f
-bReduceNonGreedy (Abs {info, bind, body}) = Abs info bind <$> bReduceNonGreedy body
-bReduceNonGreedy _ = Nothing
+bReduceCBV (App {info, function = f, input = x}) =
+  App info f <$> bReduceCBV x
+    <|> (\a -> App info a x) <$> bReduceCBV f
+-- bReduceNonGreedy (Abs {info, bind, body}) = Abs info bind <$> bReduceNonGreedy body
+bReduceCBV _ = Nothing
 
 aConversion :: Expr ReduceInfo -> Expr ReduceInfo -> Expr ReduceInfo
 aConversion abst@(Abs {info, bind, body}) toSub = Abs info suitable_char (substitution body bind (Var info suitable_char))
@@ -85,16 +85,16 @@ isVar (Abs {body}) a = isVar body a
 isVar (Var {name = x}) a = x == a
 isVar (App {function = lhs, input = rhs}) a = isVar lhs a || isVar rhs a
 
-lambdaReduceGreedy :: Expr ReduceInfo -> [Expr ReduceInfo]
-lambdaReduceGreedy expression
+lambdaReduceNormal :: Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduceNormal expression
   | expression == result = [expression]
-  | otherwise = expression : lambdaReduceGreedy result
+  | otherwise = expression : lambdaReduceNormal result
   where
-    result = bReduceGreedy (noSub <$ expression)
+    result = bReduceNormal (noSub <$ expression)
 
-lambdaReduceNonGreedy :: Expr ReduceInfo -> [Expr ReduceInfo]
-lambdaReduceNonGreedy expression
-  | Just exp <- result = expression : lambdaReduceNonGreedy exp
+lambdaReduceCBV :: Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduceCBV expression
+  | Just exp <- result = expression : lambdaReduceCBV exp
   | otherwise = [expression]
   where
-    result = bReduceNonGreedy (noSub <$ expression)
+    result = bReduceCBV (noSub <$ expression)

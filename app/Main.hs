@@ -7,7 +7,7 @@ import Data.Map (empty, insert, mapEither)
 import Data.Set (fromList)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser, newSymbolTable)
-import ModelComputation.LambdaCalculus.Reduction (lambdaReduceGreedy, lambdaReduceNonGreedy)
+import ModelComputation.LambdaCalculus.Reduction (lambdaReduceNormal, lambdaReduceCBV)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine)
 import System.Console.Haskeline (defaultSettings, outputStrLn, runInputT)
@@ -50,9 +50,9 @@ runLambdaMode a = do
 
   print $ integerToChurchEncoding 3
 
-  runInputT defaultSettings (replCommand (if a == "greedy" then lambdaReduceGreedy else lambdaReduceNonGreedy) symbols)
+  runInputT defaultSettings (replCommand (if a == "greedy" then lambdaReduceNormal else lambdaReduceCBV) symbols)
   where
-    run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
+    run = either (outputStrLn . show) (evaluateLambda lambdaReduceNormal) . parseLambda defaultSymbolTable
 
 parseArgument :: [String] -> IO ()
 parseArgument ["lambda", a] = runLambdaMode a

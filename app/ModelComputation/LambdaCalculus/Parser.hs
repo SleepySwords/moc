@@ -104,6 +104,7 @@ newSymbolTable =
       ("For", "\\nf.n f"),
       ("Y", "\\f.(\\x.f (x x)) (\\x.f (x x))"),
       ("O", "(\\xy.y (\\z.x x y z)) (\\xy.y (\\z.x x y z))"),
+      ("Z", "\\f.(\\x.f (\\v.x x v)) (\\x.f (\\v.x x v))"),
 
       ("Succ", "\\nfx.f (n f x)"),
       -- ("+", "\\pq.For p (Succ) q")
@@ -113,6 +114,7 @@ newSymbolTable =
       ("IsZero", "\\x.For x (Const False) True"),
 
       ("Fact", "\\fx.If (IsZero x) 1 (* x (f (Pred x)))"),
+      ("FactZ", "\\fx.(If (IsZero x) (\\a.1) (\\b.(* x (f (Pred x))))) a"),
 
 
       ("Pair", "\\xyf.f x y"),

@@ -7,12 +7,12 @@
 module ModelComputation.LambdaCalculus.Reduction where
 
 import Control.Applicative
-import Control.Monad.State (State, runState, get, MonadState (put))
+import Control.Monad.State (MonadState (put), State, get, runState)
 import Data.List (nub, union)
 import Data.Map (Map)
-import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
 import qualified Data.Map as Map
 import Debug.Trace (trace)
+import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
 
 type SubstiutionState = State (Map (Expr ReduceInfo) (Expr ReduceInfo))
 
@@ -69,7 +69,7 @@ bReduceCBV :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
 bReduceCBV (App {info, function = f@(Abs {bind, body}), input = x}) =
   App info f <$> bReduceCBV x
     <|> (\a -> App info a x) <$> bReduceCBV f
-    <|> Just (substitution body bind (replacedBind bind <$ x))
+    <|> Just (substitution body bind (x))
 bReduceCBV (App {info, function = f, input = x}) =
   App info f <$> bReduceCBV x
     <|> (\a -> App info a x) <$> bReduceCBV f
@@ -133,4 +133,4 @@ lambdaReduceCBV expression
   | Just exp <- result = expression : lambdaReduceCBV exp
   | otherwise = [expression]
   where
-    result = bReduceCBV (noSub <$ expression)
+    result = bReduceCBV (expression)

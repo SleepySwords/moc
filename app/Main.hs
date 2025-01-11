@@ -7,7 +7,7 @@ import Data.Map (empty, insert, mapEither)
 import Data.Set (fromList)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser, newSymbolTable)
-import ModelComputation.LambdaCalculus.Reduction (lambdaReduceNormal, lambdaReduceCBV)
+import ModelComputation.LambdaCalculus.Reduction (lambdaReduceNormal, lambdaReduceCBV, normalisation)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine)
 import System.Console.Haskeline (defaultSettings, outputStrLn, runInputT)

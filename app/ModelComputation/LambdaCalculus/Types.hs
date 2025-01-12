@@ -7,10 +7,9 @@
 module ModelComputation.LambdaCalculus.Types where
 
 import Control.Monad
-import Control.Monad.State (MonadState (get, put), State, evalState, runState)
-import Data.Functor.Classes (showsBinary1)
+import Control.Monad.State (MonadState (get, put), State, evalState)
 
-data ReduceInfo = ReduceInfo {substituted :: Maybe Char, rainbow :: Int}
+newtype ReduceInfo = ReduceInfo {substituted :: Maybe Char}
 
 instance Eq ReduceInfo where
   _ == _ = True
@@ -32,19 +31,9 @@ instance Functor Expr where
   fmap f Abs {info, bind, body} = Abs (f info) bind (fmap f body)
 
 class Colour a where
-  colour :: a -> String
-  rainbowP :: a -> String
-  updateP :: a -> a
-  reset :: a -> String
-
   sub :: a -> Bool
 
 instance Colour () where
-  colour = const ""
-  rainbowP = const ""
-  updateP = id
-  reset = const ""
-
   sub = const False
 
 rainbowColour :: [(Int, Int, Int)]
@@ -63,85 +52,73 @@ rgbColour r g b = "\x1b[38;2;" ++ show r ++ ";" ++ show g ++ ";" ++ show b ++ "m
 
 -- This is slow need to think
 instance Colour ReduceInfo where
-  colour ReduceInfo {substituted = Just _} = "\x1b[32m"
-  colour ReduceInfo {substituted = Nothing} = ""
-
   sub ReduceInfo {substituted = Just _} = True
   sub ReduceInfo {substituted = Nothing} = False
 
-  -- rainbowP ReduceInfo {} = ""
-
-  -- rainbowP ReduceInfo {rainbow = v} = "\x1b[" ++ show (33 + (v `mod` 3)) ++ "m"
-  rainbowP ReduceInfo {rainbow = v} = let (r, g, b) = rainbowColour !! (v `mod` length rainbowColour) in rgbColour r g b
-  updateP ReduceInfo {rainbow = v, substituted} = ReduceInfo {substituted, rainbow = v + 1}
-  reset = const "\x1b[0m"
-
 -- Print non verbose
 instance (Colour a) => Show (Expr a) where
-  show e = evalState (showInternal e) False
+  show e = evalState (showInternal e) (False, 0)
 
--- show (Var {name = x, info}) = colour info ++ [x] ++ reset info
--- show (App {info, function = m, input = n}) = colour info ++ mPrint ++ " " ++ nPrint ++ reset info
---   where
---     mPrint = case m of
---       Abs {} -> parantheses $ show $ updateP <$> m
---       _ -> show m
---     nPrint = case n of
---       Var {} -> show n
---       _ -> parantheses $ show $ updateP <$> n
---     parantheses str = concat [rainbowP info, colour info, "(", reset info, colour info, str, rainbowP info, colour info, ")", reset info]
--- show (Abs {info, bind, body}) = colour info ++ "λ" ++ [bind] ++ "." ++ show body ++ reset info
+type PrintState = (Bool, Int)
 
-colourSt True = "\x1b[32m"
-colourSt False = ""
+colourSt :: Bool -> PrintState -> String
+colourSt _ (True, _) = "\x1b[32m"
+colourSt True (False, v) = let (r, g, b) = rainbowColour !! (v `mod` length rainbowColour) in rgbColour r g b
+colourSt False (False, _) = ""
 
-resetSt True = "\x1b[0m"
-resetSt False = ""
+resetSt :: PrintState -> PrintState -> String
+resetSt (False, _) (True, _) = "\x1b[0m"
+resetSt _ _ = ""
 
+resetC :: String
+resetC = "\x1b[0m"
 
-showInternal :: (Colour a) => Expr a -> State Bool String
-showInternal (Abs {info, bind, body}) = do
+showInternal :: (Colour a) => Expr a -> State PrintState String
+showInternal e = do
   oldSt <- get
 
-  when (sub info && not oldSt) $ put True
+  when (sub (info e) && not (fst oldSt)) $ put (True, snd oldSt)
+  newSt <- get
+
+  print <- showExpr e oldSt
+
+  when (fst newSt && not (fst oldSt)) $ put (False, snd newSt)
+
+  return print
+
+showExpr :: (Colour a) => Expr a -> PrintState -> State PrintState String
+showExpr (Abs {bind, body}) oldSt = do
   newSt <- get
 
   printBody <- showInternal body
-  let st = colourSt newSt ++ "λ" ++ [bind] ++ "." ++ printBody ++ resetSt (newSt && not oldSt) 
-
-  when (newSt && not oldSt) $ put False
+  let st = colourSt False newSt ++ "λ" ++ [bind] ++ "." ++ printBody ++ resetSt oldSt newSt
 
   return st
-showInternal (App {info, function = m, input = n}) = do
-  oldSt <- get
-
-  when (sub info && not oldSt) $ put True
+showExpr (App {function = m, input = n}) oldSt = do
   newSt <- get
 
   printFun <- mPrint
   printInput <- nPrint
-  let st = colourSt newSt ++ printFun ++ " " ++ printInput ++ resetSt (newSt && not oldSt)
-
-  when (newSt && not oldSt) $ put False
+  let st = colourSt False newSt ++ printFun ++ " " ++ printInput ++ resetSt oldSt newSt
 
   return st
   where
     mPrint = case m of
-      Abs {} -> (parantheses) <$> (showInternal m)
+      Abs {} -> showInternal m >>= parantheses
       _ -> showInternal m
     nPrint = case n of
       Var {} -> showInternal n
-      _ -> (parantheses) <$> (showInternal n)
-    parantheses e = "(" ++ e ++ ")"
-showInternal (Var {info, name}) = do
-  oldSt <- get
-
-  when (sub info && not oldSt) $ put True
+      _ -> showInternal n >>= parantheses
+    parantheses :: String -> State PrintState String
+    parantheses e =
+      do
+        st <- get
+        put (fst st, snd st + 1)
+        return $ colourSt True st ++ "(" ++ resetC ++ e ++ colourSt True st ++ ")" ++ resetC
+showExpr (Var {name}) oldSt = do
   newSt <- get
 
-  let st = colourSt newSt ++ [name] ++ resetSt (newSt && not oldSt)
-
-  when (newSt && not oldSt) $ put False
+  let st = colourSt False newSt ++ [name] ++ resetSt oldSt newSt
 
   return st
 

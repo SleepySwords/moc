@@ -53,7 +53,7 @@ runLambdaMode a = do
 
   print $ integerToChurchEncoding 3
 
-  runInputT defaultSettings (replCommand (if a == "greedy" then lambdaReduceNormal else lambdaReduceCBV) symbols)
+  runInputT defaultSettings (replCommand (if a == "cbv" then lambdaReduceCBV else lambdaReduceNormal) symbols)
   where
     -- run = either (outputStrLn . show) (evaluateLambda (lambdaReduceGreedyMemo Map.empty)) . parseLambda defaultSymbolTable
     -- run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable

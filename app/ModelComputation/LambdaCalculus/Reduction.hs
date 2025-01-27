@@ -17,10 +17,10 @@ import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
 type SubstiutionState = State (Map (Expr ReduceInfo) (Expr ReduceInfo))
 
 noSub :: ReduceInfo
-noSub = ReduceInfo {substituted = Nothing, rainbow = 0}
+noSub = ReduceInfo {substituted = Nothing}
 
 replacedBind :: Char -> ReduceInfo
-replacedBind x = ReduceInfo {substituted = Just x, rainbow = 0}
+replacedBind x = ReduceInfo {substituted = Just x}
 
 -- t[x := r]
 -- t, s and r are lambda vars
@@ -45,7 +45,7 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
 
 -- (λx.t) s -> t[x := s]
 bReduceNormal :: Expr ReduceInfo -> Expr ReduceInfo
-bReduceNormal (App {function = (Abs {bind, body}), input = x}) = substitution body bind (replacedBind bind <$ x)
+bReduceNormal (App {function = (Abs {bind, body}), input = x}) = substitution body bind (x)
 bReduceNormal (App {info, function, input}) = App info (bReduceNormal function) (bReduceNormal input)
 bReduceNormal (Abs {info, bind, body}) = Abs info bind (bReduceNormal body)
 bReduceNormal a = a
@@ -55,7 +55,7 @@ bReduceGreedyMemo :: Expr ReduceInfo -> SubstiutionState (Expr ReduceInfo)
 bReduceGreedyMemo app@(App {function = (Abs {bind, body}), input = x}) = do
   cacheMap <- get
   case Map.lookup (normalisation app) cacheMap of
-    Just v -> (flip trace) (return v) "Cache hit"
+    Just v -> trace "Cache hit" (return v)
     Nothing -> do
       let state = substitution body bind (replacedBind bind <$ x)
       put $ Map.insert (normalisation app) state cacheMap
@@ -109,7 +109,7 @@ lambdaReduceNormal expression
   | expression == result = [expression]
   | otherwise = expression : lambdaReduceNormal result
   where
-    result = bReduceNormal (noSub <$ expression)
+    result = bReduceNormal (expression)
 
 lambdaReduceGreedyMemo :: Map (Expr ReduceInfo) (Expr ReduceInfo) -> Expr ReduceInfo -> [Expr ReduceInfo]
 lambdaReduceGreedyMemo cacheMap expression

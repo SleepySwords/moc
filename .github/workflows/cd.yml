@@ -68,8 +68,8 @@ jobs:
       - name: Setup Haskell
         uses: haskell-actions/setup@v2
         with:
-          ghc-version: 3.10.2.1
-          cabal-version: 9.6.6
+          ghc-version: 9.6.6
+          cabal-version: 3.10.2.1
       - name: Build
         shell: bash
         run: |

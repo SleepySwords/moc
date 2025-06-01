@@ -1,0 +1,91 @@
+name: Continuous Deployment
+
+on:
+  push:
+    tags:
+    - "*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release'
+        required: false
+        default: nightly
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload-url: ${{ steps.create-release-draft.outputs.upload_url }}
+    steps:
+      - if: github.event_name == 'push'
+        run: |
+          TAG_NAME=${{ github.ref }}
+          echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
+      - if: github.event_name == 'workflow_dispatch'
+        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+      - if: github.event.inputs.tag_name == 'nightly'
+        run: |
+          echo "PRERELEASE=true" >> $GITHUB_ENV
+          echo "SUBJECT=Prelease of moc" >> $GITHUB_ENV
+      - if: github.event.inputs.tag_name != 'nightly'
+        run: |
+          echo "PRERELEASE=false" >> $GITHUB_ENV
+          echo "SUBJECT=Release of moc $TAG_NAME" >> $GITHUB_ENV
+      - name: Create release draft
+        id: create-release-draft
+        uses: release-drafter/release-drafter@v5
+        with:
+          config-name: release-drafter.yml
+          disable-autolabeler: true
+          tag: ${{ env.TAG_NAME }}
+          name: ${{ env.SUBJECT }}
+          prerelease: ${{ env.PRERELEASE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dist:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            build: windows-x86_64
+            friendly_name: windows
+          - os: macos-13
+            build: x86_64-apple-darwin
+            friendly_name: macos
+          - os: macos-latest
+            build: arch-apple-darwin
+            friendly_name: macos-arch
+          - os: ubuntu-latest
+            build: linux-x86_64
+            friendly_name: linux
+    runs-on: ${{ matrix.os }}
+    needs: create-release
+    name: Releases to ${{ matrix.friendly_name }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        shell: bash
+        run: |
+          staging="moc_${{ matrix.build }}"
+          mkdir -p "$staging"
+          BUILD_PATH=$(cabal build | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
+          cabal build
+          cp BUILD_PATH "$staging/"
+          if [ "${{matrix.os}}" = "windows-latest"]; then
+            7z a "$staging.zip" "$staging"
+            echo "ASSET=$staging.zip" >> $GITHUB_ENV
+          else
+            tar czf "$staging.tar.gz" "$staging"
+            echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
+          fi
+      - name: Upload
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload-url }}
+          asset_path: ${{ env.ASSET }}
+          asset_name: ${{ env.ASSET }}
+          asset_content_type: application/octet-stream

@@ -39,11 +39,19 @@ initialiseMachine tm tape = (tape, initialState tm, 0)
 
 -- FIXME: verify transitionFunction
 verifyMachine :: TuringMachine -> Bool
-verifyMachine TuringMachine {blank, tapeAlphabet, inputSymbols, states, initialState, finalStates} =
+verifyMachine TuringMachine {blank, tapeAlphabet, inputSymbols, states, initialState, finalStates, transitionFunctions} =
   blank `elem` tapeAlphabet
     && inputSymbols `isSubsetOf` tapeAlphabet
     && initialState `elem` states
     && finalStates `isSubsetOf` states
+    && all
+      ( \((i, a), (s, f, _)) ->
+          i `elem` states
+            && s `elem` states
+            && a `elem` tapeAlphabet
+            && f `elem` tapeAlphabet
+      )
+      transitionFunctions
 
 transitionFunction :: TuringMachine -> (State, Symbol) -> Maybe (State, Symbol, Shift)
 transitionFunction tm l = lookup l $ transitionFunctions tm
@@ -56,12 +64,13 @@ printState tm (tape, state, position) =
         ++ "▾"
         ++ state
         ++ context,
-      tape,
+      tape ++ blankPadding,
       []
     ]
   where
     tapeSymbol = fromMaybe (blank tm) (tape ^? element position)
     context = maybe "" contextString (transitionFunction tm (state, tapeSymbol))
+    blankPadding = replicate (position + 1 - length tape) (blank tm)
     contextString (newState, newSymbol, shift) =
       " -> " ++ intercalate "," [newState, [newSymbol], show shift]
 

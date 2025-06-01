@@ -2,22 +2,19 @@
 
 module Main where
 
-import Control.Arrow (Arrow (second))
-import Data.Map (empty, insert, mapEither)
+import Data.Map (empty, insert)
 import Data.Set (fromList)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser, newSymbolTable)
-import ModelComputation.LambdaCalculus.Reduction (lambdaReduceNormal, lambdaReduceCBV, normalisation)
+import ModelComputation.LambdaCalculus.Reduction (lambdaReduceCBV, lambdaReduceNormal, normalisation)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
-import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine)
+import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine, verifyMachine)
 import System.Console.Haskeline (defaultSettings, outputStrLn, runInputT)
 import System.Environment (getArgs)
 import Text.Megaparsec (MonadParsec (eof), parseTest)
-import qualified Data.Map as Map
 
 main :: IO ()
 main = getArgs >>= parseArgument
-
 
 runLambdaMode :: String -> IO ()
 runLambdaMode a = do
@@ -67,7 +64,7 @@ parseArgument ["turing"] = do
   let tm =
         TuringMachine
           { states = fromList ["b", "c", "e", "f"],
-            tapeAlphabet = fromList ['.'],
+            tapeAlphabet = fromList ['.', '0', '1'],
             blank = '.',
             inputSymbols = fromList [],
             transitionFunctions =
@@ -81,8 +78,8 @@ parseArgument ["turing"] = do
           }
   let addition =
         TuringMachine
-          { states = fromList ["q0", "q1", "q2"],
-            tapeAlphabet = fromList ['.', '0', 'c'],
+          { states = fromList ["q0", "q1", "q2", "q3"],
+            tapeAlphabet = fromList ['.', '0', 'c', 'X'],
             blank = '.',
             inputSymbols = fromList [],
             transitionFunctions =
@@ -99,6 +96,8 @@ parseArgument ["turing"] = do
             initialState = "q0",
             finalStates = fromList ["q3"]
           }
+  print (verifyMachine tm)
+  print (verifyMachine addition)
 
-  mapM_ (putStrLn . printState addition) (runMachine addition "0c00")
+  mapM_ (putStrLn . printState tm) (runMachine tm "")
 parseArgument _ = putStrLn "Unknown mode: Use either lambda or turing"

@@ -1,0 +1,52 @@
+change-template: '- $TITLE (#$NUMBER) by @$AUTHOR'
+
+tag-template: "v$RESOLVED_VERSION"
+name-template: "Release moc v$tag-template"
+category-template: "### $TITLE"
+
+exclude-contributors:
+  - 'SleepySwords'
+categories:
+  - title: 'Integration'
+    labels:
+      - 'integration'
+  - title: 'Organisation'
+    labels:
+      - 'organisation'
+  - title: 'UI/UX'
+    labels:
+      - 'ui/ux'
+  - title: 'Code Quality'
+    labels:
+      - 'code quality'
+  - title: 'CI/CD'
+    labels:
+      - 'ci/cd'
+  - title: 'Documentation'
+    labels:
+      - 'docs'
+  - title: 'Bug fixes'
+    labels:
+      - 'bug'
+  - title: 'Other changes'
+
+
+version-resolver:
+  major:
+    labels:
+      - 'type: breaking'
+  minor:
+    labels:
+      - 'type: feature'
+  patch:
+    labels:
+      - 'type: bug'
+      - 'type: maintenance'
+      - 'type: docs'
+      - 'type: dependencies'
+      - 'type: security'
+
+template: |
+  ## Changelog
+  $CHANGES
+

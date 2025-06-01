@@ -7,6 +7,7 @@
 module ModelComputation.LambdaCalculus.Reduction where
 
 import Control.Applicative
+import Control.Lens ((<&>))
 import Control.Monad.State (MonadState (put), State, get, runState)
 import Data.List (nub, union)
 import Data.Map (Map)
@@ -45,31 +46,31 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
 
 -- (λx.t) s -> t[x := s]
 bReduceNormal :: Expr ReduceInfo -> Expr ReduceInfo
-bReduceNormal (App {function = (Abs {bind, body}), input = x}) = substitution body bind (x)
+bReduceNormal (App {function = (Abs {bind, body}), input = x}) = substitution body bind x
 bReduceNormal (App {info, function, input}) = App info (bReduceNormal function) (bReduceNormal input)
 bReduceNormal (Abs {info, bind, body}) = Abs info bind (bReduceNormal body)
 bReduceNormal a = a
 
 -- (λx.t) s -> t[x := s]
-bReduceGreedyMemo :: Expr ReduceInfo -> SubstiutionState (Expr ReduceInfo)
-bReduceGreedyMemo app@(App {function = (Abs {bind, body}), input = x}) = do
+bReduceNormalMemo :: Expr ReduceInfo -> SubstiutionState (Expr ReduceInfo)
+bReduceNormalMemo app@(App {function = (Abs {bind, body}), input = x}) = do
   cacheMap <- get
   case Map.lookup (normalisation app) cacheMap of
-    Just v -> trace "Cache hit" (return v)
+    Just v -> {- trace "Cache hit" -} return v
     Nothing -> do
-      let state = substitution body bind (replacedBind bind <$ x)
+      let state = substitution body bind x
       put $ Map.insert (normalisation app) state cacheMap
       return state
-bReduceGreedyMemo (App {info, function, input}) = App info <$> bReduceGreedyMemo function <*> bReduceGreedyMemo input
-bReduceGreedyMemo (Abs {info, bind, body}) = Abs info bind <$> bReduceGreedyMemo body
-bReduceGreedyMemo a = return a
+bReduceNormalMemo (App {info, function, input}) = App info <$> bReduceNormalMemo function <*> bReduceNormalMemo input
+bReduceNormalMemo (Abs {info, bind, body}) = Abs info bind <$> bReduceNormalMemo body
+bReduceNormalMemo a = return a
 
 -- (λx.t) s -> t[x := s]
 bReduceCBV :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
 bReduceCBV (App {info, function = f@(Abs {bind, body}), input = x}) =
   App info f <$> bReduceCBV x
     <|> (\a -> App info a x) <$> bReduceCBV f
-    <|> Just (substitution body bind (x))
+    <|> Just (substitution body bind x)
 bReduceCBV (App {info, function = f, input = x}) =
   App info f <$> bReduceCBV x
     <|> (\a -> App info a x) <$> bReduceCBV f
@@ -81,22 +82,22 @@ aConversion abst@(Abs {info, bind, body}) toSub = Abs info suitable_char (substi
     suitable_char = head [x | x <- ['a' .. 'z'], not $ isVar abst x, not $ isFreeVar toSub x]
 aConversion _ _ = error "Cannot alpha reduce with not an abstraction"
 
-freeVars :: Expr a -> [Char]
+freeVars :: Expr a -> String
 freeVars (Abs {bind, body}) = [x | x <- freeVars body, x /= bind]
 freeVars (Var {name = x}) = [x]
 freeVars (App {function = lhs, input = rhs}) = freeVars lhs `union` freeVars rhs
 
 isFreeVar :: Expr a -> Char -> Bool
-isFreeVar (Abs {bind, body}) a = (bind /= a) && isFreeVar body a
+isFreeVar (Abs {bind, body}) a = bind /= a && isFreeVar body a
 isFreeVar (Var {name = x}) a = x == a
 isFreeVar (App {function = lhs, input = rhs}) a = isFreeVar lhs a || isFreeVar rhs a
 
-boundVars :: Expr a -> [Char]
+boundVars :: Expr a -> String
 boundVars (Abs {bind, body}) = bind : boundVars body
 boundVars (App {function, input}) = boundVars function `union` boundVars input
 boundVars (Var {}) = []
 
-vars :: Expr a -> [Char]
+vars :: Expr a -> String
 vars x = nub $ freeVars x ++ boundVars x
 
 isVar :: Expr a -> Char -> Bool
@@ -109,14 +110,14 @@ lambdaReduceNormal expression
   | expression == result = [expression]
   | otherwise = expression : lambdaReduceNormal result
   where
-    result = bReduceNormal (expression)
+    result = bReduceNormal expression
 
-lambdaReduceGreedyMemo :: Map (Expr ReduceInfo) (Expr ReduceInfo) -> Expr ReduceInfo -> [Expr ReduceInfo]
-lambdaReduceGreedyMemo cacheMap expression
+lambdaReduceNormalMemo :: Map (Expr ReduceInfo) (Expr ReduceInfo) -> Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduceNormalMemo cacheMap expression
   | expression == result = [expression]
-  | otherwise = expression : lambdaReduceGreedyMemo cache result
+  | otherwise = expression : lambdaReduceNormalMemo cache result
   where
-    (result, cache) = runState (bReduceGreedyMemo (noSub <$ expression)) cacheMap
+    (result, cache) = runState (bReduceNormalMemo expression) cacheMap
 
 normalisation :: Expr a -> Expr a
 -- A free variable so do not change anything
@@ -133,4 +134,4 @@ lambdaReduceCBV expression
   | Just exp <- result = expression : lambdaReduceCBV exp
   | otherwise = [expression]
   where
-    result = bReduceCBV (expression)
+    result = bReduceCBV expression

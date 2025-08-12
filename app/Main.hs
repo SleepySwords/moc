@@ -5,6 +5,7 @@ module Main where
 import Data.Map (empty, insert)
 import Data.Set (fromList)
 import qualified ModelComputation.FiniteStateAutomota.DFA as DFA (DeterministFiniteAutomota (..), runDFA)
+import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser, newSymbolTable)
 import ModelComputation.LambdaCalculus.Reduction (lambdaReduceCBV, lambdaReduceNormal, normalisation)
@@ -117,9 +118,28 @@ runDFAMode = do
           }
   print $ DFA.runDFA dfa "aaaaaaaaaaaaaaaaaaaab"
 
+runNFAMode :: IO ()
+runNFAMode = do
+  let nfa =
+        NFA.NondetermenistFiniteAutomota
+          { NFA.states = fromList ["q0", "q1", "q2", "q3", "q4"],
+            NFA.alphabet = fromList ['a', 'b'],
+            NFA.transitionFunctions =
+              [ (("q0", 'a'), fromList ["q1", "q2"]),
+                (("q1", 'a'), fromList ["q0"]),
+                (("q2", 'a'), fromList ["q3"]),
+                (("q3", 'b'), fromList ["q0"]),
+                (("q0", 'b'), fromList ["q4"])
+              ],
+            NFA.initialState = "q0",
+            NFA.finalStates = fromList ["q4"]
+          }
+  print $ NFA.runNFA nfa "aaaabbb"
+
 parseArgument :: [String] -> IO ()
 parseArgument ["lambda", a] = runLambdaMode a
 parseArgument ["lambda"] = runLambdaMode ""
 parseArgument ["turing"] = runTuringMode
 parseArgument ["dfa"] = runDFAMode
+parseArgument ["nfa"] = runNFAMode
 parseArgument _ = putStrLn "Unknown mode: Use either lambda or turing"

@@ -46,14 +46,14 @@ jobs:
   dist:
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest, macos-13]
         include:
           # - os: windows-latest
           #   build: windows-x86_64
           #   friendly_name: windows
           - os: macos-13
             build: x86_64-apple-darwin
-            friendly_name: macos
+            friendly_name: macos-x86
           - os: macos-latest
             build: aarch64-apple-darwin
             friendly_name: macos-arch
@@ -79,13 +79,8 @@ jobs:
           BUILD_PATH=$(cabal build | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
           cabal build
           cp $BUILD_PATH "$staging/"
-          if [ "${{matrix.os}}" = "windows-latest"]; then
-            7z a "$staging.zip" "$staging"
-            echo "ASSET=$staging.zip" >> $GITHUB_ENV
-          else
-            tar czf "$staging.tar.gz" "$staging"
-            echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
-          fi
+          tar czf "$staging.tar.gz" "$staging"
+          echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
       - name: Upload
         uses: actions/upload-release-asset@v1.0.1
         env:

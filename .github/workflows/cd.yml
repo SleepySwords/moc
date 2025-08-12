@@ -11,11 +11,16 @@ on:
         required: false
         default: nightly
 
+permissions:
+  contents: read
+
 jobs:
   create-release:
     runs-on: ubuntu-latest
     outputs:
       upload-url: ${{ steps.create-release-draft.outputs.upload_url }}
+    permissions:
+      contents: write
     steps:
       - if: github.event_name == 'push'
         run: |
@@ -33,7 +38,7 @@ jobs:
           echo "SUBJECT=Release of moc $TAG_NAME" >> $GITHUB_ENV
       - name: Create release draft
         id: create-release-draft
-        uses: release-drafter/release-drafter@v5
+        uses: release-drafter/release-drafter@v6
         with:
           config-name: release-drafter.yml
           disable-autolabeler: true

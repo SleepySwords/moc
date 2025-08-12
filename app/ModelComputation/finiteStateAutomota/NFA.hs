@@ -38,5 +38,5 @@ initialiseMachine NondetermenistFiniteAutomota {initialState} str = (str, initia
 transitionFunction :: NondetermenistFiniteAutomota -> (State, Symbol) -> Maybe (Set State)
 transitionFunction NondetermenistFiniteAutomota {transitionFunctions} l = lookup l transitionFunctions
 
-translateToDFA :: NondetermenistFiniteAutomota -> DeterministFiniteAutomota
-translateToDFA 
+-- translateToDFA :: NondetermenistFiniteAutomota -> DeterministFiniteAutomota
+-- translateToDFA 

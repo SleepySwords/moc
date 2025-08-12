@@ -4,6 +4,7 @@ module Main where
 
 import Data.Map (empty, insert)
 import Data.Set (fromList)
+import qualified ModelComputation.FiniteStateAutomota.DFA as DFA (DeterministFiniteAutomota (..), runDFA)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser, newSymbolTable)
 import ModelComputation.LambdaCalculus.Reduction (lambdaReduceCBV, lambdaReduceNormal, normalisation)
@@ -57,10 +58,8 @@ runLambdaMode a = do
     runNormalise = either (outputStrLn . show) (outputStrLn . show . normalisation) . parseLambda defaultSymbolTable
     run = either (outputStrLn . show) (evaluateLambda lambdaReduceNormal) . parseLambda defaultSymbolTable
 
-parseArgument :: [String] -> IO ()
-parseArgument ["lambda", a] = runLambdaMode a
-parseArgument ["lambda"] = runLambdaMode ""
-parseArgument ["turing"] = do
+runTuringMode :: IO ()
+runTuringMode = do
   let tm =
         TuringMachine
           { states = fromList ["b", "c", "e", "f"],
@@ -100,4 +99,27 @@ parseArgument ["turing"] = do
   print (verifyMachine addition)
 
   mapM_ (putStrLn . printState tm) (runMachine tm "")
+
+runDFAMode :: IO ()
+runDFAMode = do
+  let dfa =
+        DFA.DeterministFiniteAutomota
+          { DFA.states = fromList ["q0"],
+            DFA.alphabet = fromList ['a', 'b'],
+            DFA.transitionFunctions =
+              [ (("q0", 'a'), "q0"),
+                (("q0", 'b'), "qi"),
+                (("qi", 'a'), "qi"),
+                (("qi", 'b'), "qi")
+              ],
+            DFA.initialState = "q0",
+            DFA.finalStates = fromList ["q0"]
+          }
+  print $ DFA.runDFA dfa "aaaaaaaaaaaaaaaaaaaab"
+
+parseArgument :: [String] -> IO ()
+parseArgument ["lambda", a] = runLambdaMode a
+parseArgument ["lambda"] = runLambdaMode ""
+parseArgument ["turing"] = runTuringMode
+parseArgument ["dfa"] = runDFAMode
 parseArgument _ = putStrLn "Unknown mode: Use either lambda or turing"

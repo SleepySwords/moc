@@ -55,7 +55,7 @@ jobs:
             build: x86_64-apple-darwin
             friendly_name: macos
           - os: macos-latest
-            build: arch-apple-darwin
+            build: aarch64-apple-darwin
             friendly_name: macos-arch
           - os: ubuntu-latest
             build: linux-x86_64

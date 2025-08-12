@@ -78,7 +78,7 @@ jobs:
           cabal update
           BUILD_PATH=$(cabal build | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
           cabal build
-          cp BUILD_PATH "$staging/"
+          cp $BUILD_PATH "$staging/"
           if [ "${{matrix.os}}" = "windows-latest"]; then
             7z a "$staging.zip" "$staging"
             echo "ASSET=$staging.zip" >> $GITHUB_ENV

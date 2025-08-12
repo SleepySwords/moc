@@ -112,6 +112,8 @@ newSymbolTable =
       ("+", "(\\pqfx.(p f (q f x)))"),
       ("*", "\\mnf.m (n f)"),
       ("IsZero", "\\x.For x (Const False) True"),
+      ("-", "\\mn.For n (Pred) m"),
+      ("LEQ", "\\mn.IsZero (- m n)"),
 
       ("Fact", "\\fx.If (IsZero x) 1 (* x (f (Pred x)))"),
       ("FactZ", "\\fx.(If (IsZero x) (\\a.1) (\\b.(* x (f (Pred x))))) a"),

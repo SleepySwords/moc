@@ -20,9 +20,6 @@ main = getArgs >>= parseArgument
 
 runLambdaMode :: String -> IO ()
 runLambdaMode a = do
-  let symbols = foldl foldF Data.Map.empty newSymbolTable
-        where
-          foldF s (k, l) = either (const s) (\v -> Data.Map.insert k v s) (parseLambda s l)
   -- let symbols = defaultSymbolTable
   parseTest (lambdaParser symbols <* eof) "\\x. x \\a.x \\y.y"
   parseTest (lambdaParser symbols <* eof) "(\\x. (\\a.x \\y.y) x) a"
@@ -43,8 +40,10 @@ runLambdaMode a = do
         run "(λm.λn.λf.λx.m f (n f x)) 3 12"
         run "(λxyz.x y z) (λx.x x) (λx.x) x"
         run "(\\bxy.b x y) True 1 0"
-        run "IfThen False 1 100"
+        run "If False 1 100"
         run "(\\xy.x y) y"
+        run "- 10 3"
+        run "+ 10 3"
         run "10"
         runNormalise "\\x.\\y.x y"
         runNormalise "\\b.\\a.b a"
@@ -56,8 +55,10 @@ runLambdaMode a = do
   where
     -- run = either (outputStrLn . show) (evaluateLambda (lambdaReduceGreedyMemo Map.empty)) . parseLambda defaultSymbolTable
     -- run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
-    runNormalise = either (outputStrLn . show) (outputStrLn . show . normalisation) . parseLambda defaultSymbolTable
-    run = either (outputStrLn . show) (evaluateLambda lambdaReduceNormal) . parseLambda defaultSymbolTable
+    runNormalise = either (outputStrLn . show) (outputStrLn . show . normalisation) . parseLambda symbols
+    run = either (outputStrLn . show) (evaluateLambda lambdaReduceNormal) . parseLambda symbols
+    symbols = foldl foldF Data.Map.empty newSymbolTable
+    foldF s (k, l) = either (const s) (\v -> Data.Map.insert k v s) (parseLambda s l)
 
 runTuringMode :: IO ()
 runTuringMode = do

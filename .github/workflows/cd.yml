@@ -48,9 +48,9 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
         include:
-          - os: windows-latest
-            build: windows-x86_64
-            friendly_name: windows
+          # - os: windows-latest
+          #   build: windows-x86_64
+          #   friendly_name: windows
           - os: macos-13
             build: x86_64-apple-darwin
             friendly_name: macos

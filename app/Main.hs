@@ -135,7 +135,22 @@ runNFAMode = do
             NFA.initialState = "q0",
             NFA.finalStates = fromList ["q4"]
           }
-  print $ NFA.runNFA nfa "aaaabbb"
+  print $ NFA.runNFA nfa "aaaabb"
+
+  let nfa =
+        NFA.NondetermenistFiniteAutomota
+          { NFA.states = fromList ["q0", "q1", "q2"],
+            NFA.alphabet = fromList ['a', 'b'],
+            NFA.transitionFunctions =
+              [ (("q0", 'a'), fromList ["q1"]),
+                (("q1", NFA.emptyString), fromList ["q2", "q3"]),
+                (("q2", 'a'), fromList ["q2"]),
+                (("q3", 'b'), fromList ["q3"])
+              ],
+            NFA.initialState = "q0",
+            NFA.finalStates = fromList ["q2", "q3"]
+          }
+  print $ NFA.runNFA nfa "aaaaaa"
 
 parseArgument :: [String] -> IO ()
 parseArgument ["lambda", a] = runLambdaMode a

@@ -13,14 +13,15 @@ on:
 
 permissions:
   contents: read
+  contents: write
 
 jobs:
   create-release:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     outputs:
       upload-url: ${{ steps.create-release-draft.outputs.upload_url }}
-    permissions:
-      contents: write
     steps:
       - if: github.event_name == 'push'
         run: |
@@ -86,8 +87,8 @@ jobs:
           cp $BUILD_PATH "$staging/"
           tar czf "$staging.tar.gz" "$staging"
           echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
-      - name: Upload
-        uses: actions/upload-release-asset@v1.0.1
+      - name: Release
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

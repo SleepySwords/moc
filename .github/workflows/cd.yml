@@ -88,10 +88,12 @@ jobs:
           cp $BUILD_PATH "$staging/"
           tar czf "$staging.tar.gz" "$staging"
           echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload
+        uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: |
-            ${{ env.ASSET }}
+          upload_url: ${{ needs.create-release.outputs.upload-url }}
+          asset_path: ${{ env.ASSET }}
+          asset_name: ${{ env.ASSET }}
+          asset_content_type: application/octet-stream

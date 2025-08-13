@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  contents: write
 
 jobs:
   create-release:
@@ -50,6 +49,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   dist:
+    permissions:
+      contents: write
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest, macos-13]

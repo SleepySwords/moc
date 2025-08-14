@@ -83,7 +83,7 @@ jobs:
           staging="moc_${{ matrix.build }}"
           mkdir -p "$staging"
           cabal update
-          if [ "${{matrix.os}}" = "windows-latest"]; then
+          if [ "${{matrix.os}}" = "windows-latest" ]; then
             BUILD_PATH=$(cabal build -f terminfo | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
             cp $BUILD_PATH "$staging/"
             7z a "$staging.zip" "$staging"

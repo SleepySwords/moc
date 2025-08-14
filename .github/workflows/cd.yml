@@ -83,10 +83,16 @@ jobs:
           staging="moc_${{ matrix.build }}"
           mkdir -p "$staging"
           cabal update
-          BUILD_PATH=$(cabal build | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
-          cabal build
-          cp $BUILD_PATH "$staging/"
-          tar czf "$staging.tar.gz" "$staging"
+          if [ "${{matrix.os}}" = "windows-latest"]; then
+            BUILD_PATH=$(cabal build -f terminfo | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
+            cp $BUILD_PATH "$staging/"
+            7z a "$staging.zip" "$staging"
+            echo "ASSET=$staging.zip" >> $GITHUB_ENV
+          else
+            BUILD_PATH=$(cabal build | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
+            cp $BUILD_PATH "$staging/"
+            tar czf "$staging.tar.gz" "$staging"
+          fi
           echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
       - name: Upload
         uses: actions/upload-release-asset@v1.0.1

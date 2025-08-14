@@ -148,3 +148,10 @@ churchEncodingToInteger (Abs {bind = a, body = (Abs {bind = b, body = innerBody}
       | otherwise = Nothing
     hasApplied _ = Nothing
 churchEncodingToInteger _ = Nothing
+
+churchEncodingToBool :: Expr a -> Maybe Bool
+churchEncodingToBool (Abs {bind = a, body = (Abs {bind = b, body = (Var {name = c})})})
+  | a == c = Just True
+  | b == c = Just False
+  | otherwise = Nothing
+churchEncodingToBool _ = Nothing

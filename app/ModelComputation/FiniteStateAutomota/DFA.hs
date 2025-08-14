@@ -2,7 +2,8 @@
 
 module ModelComputation.FiniteStateAutomota.DFA where
 
-import Data.Set (Set, member)
+import Data.List (intercalate)
+import Data.Set (Set, member, toList)
 
 type Symbol = Char
 
@@ -26,7 +27,37 @@ data DeterministFiniteAutomota = DeterministFiniteAutomota
     finalStates :: Set State
   }
 
-data Result = Success | Failiure deriving Show
+instance Show DeterministFiniteAutomota where
+  show
+    DeterministFiniteAutomota
+      { states,
+        alphabet,
+        transitionFunctions,
+        initialState,
+        finalStates
+      } =
+      ( "states = {"
+          ++ intercalate ", " (toList states)
+          ++ "}\n"
+      )
+        ++ ( "alphabet = {"
+               ++ intercalate ", " ((: []) <$> toList alphabet)
+               ++ "}\n"
+           )
+        ++ ( "transitionFunctions = {"
+               ++ intercalate ", " ((\((a, b), c) -> "(" ++ a ++ "," ++ [b] ++ ") --> " ++ c) <$> transitionFunctions)
+               ++ "}\n"
+           )
+        ++ ( "initialState = "
+               ++ initialState
+               ++ "\n"
+           )
+        ++ ( "finalStates = {"
+               ++ intercalate ", " (toList finalStates)
+               ++ "}"
+           )
+
+data Result = Success | Failiure deriving (Show)
 
 type AutomotaInstance = (AString, State)
 

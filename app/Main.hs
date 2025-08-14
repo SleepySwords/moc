@@ -4,23 +4,24 @@ module Main where
 
 import Data.Map (empty, insert)
 import Data.Set (fromList)
-import qualified ModelComputation.FiniteStateAutomota.DFA as DFA (DeterministFiniteAutomota (..), runDFA)
+import Data.Text (pack)
+import ModelComputation.FiniteStateAutomota.DFA (runDFA)
 import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
+import ModelComputation.FiniteStateAutomota.Parser (parseAutomota)
 import ModelComputation.LambdaCalculus.Command
-import ModelComputation.LambdaCalculus.Parser (defaultSymbolTable, lambdaParser, newSymbolTable)
+import ModelComputation.LambdaCalculus.Parser (lambdaParser, newSymbolTable)
 import ModelComputation.LambdaCalculus.Reduction (lambdaReduceCBV, lambdaReduceNormal, normalisation)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine, verifyMachine)
-import System.Console.Haskeline (defaultSettings, outputStrLn, runInputT)
+import System.Console.Haskeline (defaultSettings, getInputLine, outputStrLn, runInputT)
 import System.Environment (getArgs)
-import Text.Megaparsec (MonadParsec (eof), parseTest)
+import Text.Megaparsec (MonadParsec (eof),  parse, parseTest)
 
 main :: IO ()
 main = getArgs >>= parseArgument
 
 runLambdaMode :: String -> IO ()
 runLambdaMode a = do
-  -- let symbols = defaultSymbolTable
   parseTest (lambdaParser symbols <* eof) "\\x. x \\a.x \\y.y"
   parseTest (lambdaParser symbols <* eof) "(\\x. (\\a.x \\y.y) x) a"
   parseTest (lambdaParser symbols <* eof) "\\xy.x"
@@ -102,22 +103,24 @@ runTuringMode = do
 
   mapM_ (putStrLn . printState tm) (runMachine tm "")
 
-runDFAMode :: IO ()
-runDFAMode = do
-  let dfa =
-        DFA.DeterministFiniteAutomota
-          { DFA.states = fromList ["q0"],
-            DFA.alphabet = fromList ['a', 'b'],
-            DFA.transitionFunctions =
-              [ (("q0", 'a'), "q0"),
-                (("q0", 'b'), "qi"),
-                (("qi", 'a'), "qi"),
-                (("qi", 'b'), "qi")
-              ],
-            DFA.initialState = "q0",
-            DFA.finalStates = fromList ["q0"]
-          }
-  print $ DFA.runDFA dfa "aaaaaaaaaaaaaaaaaaaab"
+runDFAMode :: String -> IO ()
+runDFAMode filename = do
+  dfaText <- readFile filename
+
+  case parse parseAutomota "Failed" (pack dfaText) of
+    Right dfa -> do
+      putStrLn "Parsed deterministic finite state automota:"
+      putStrLn ""
+      print dfa
+      putStrLn ""
+      runInputT defaultSettings (runTest dfa)
+    Left err -> do
+      print (show err)
+  where
+    runTest dfa = do
+      toEval <- getInputLine "Test Str> "
+      maybe (outputStrLn "") (outputStrLn . show . runDFA dfa) toEval
+      runTest dfa
 
 runNFAMode :: IO ()
 runNFAMode = do
@@ -137,25 +140,10 @@ runNFAMode = do
           }
   print $ NFA.runNFA nfa "aaaabb"
 
-  let nfa =
-        NFA.NondetermenistFiniteAutomota
-          { NFA.states = fromList ["q0", "q1", "q2"],
-            NFA.alphabet = fromList ['a', 'b'],
-            NFA.transitionFunctions =
-              [ (("q0", 'a'), fromList ["q1"]),
-                (("q1", NFA.emptyString), fromList ["q2", "q3"]),
-                (("q2", 'a'), fromList ["q2"]),
-                (("q3", 'b'), fromList ["q3"])
-              ],
-            NFA.initialState = "q0",
-            NFA.finalStates = fromList ["q2", "q3"]
-          }
-  print $ NFA.runNFA nfa "aaaaaa"
-
 parseArgument :: [String] -> IO ()
 parseArgument ["lambda", a] = runLambdaMode a
 parseArgument ["lambda"] = runLambdaMode ""
 parseArgument ["turing"] = runTuringMode
-parseArgument ["dfa"] = runDFAMode
+parseArgument ["dfa", a] = runDFAMode a
 parseArgument ["nfa"] = runNFAMode
-parseArgument _ = putStrLn "Unknown mode: Use either lambda or turing"
+parseArgument _ = putStrLn "Unknown mode: Use either lambda, turing, dfa or nfa"

@@ -15,5 +15,5 @@ Having fun with different models!!
 
 Via Cabal
 ```
-cabal run -- <lambda | turing>
+cabal run -- <lambda | turing | dfa | nfa>
 ```

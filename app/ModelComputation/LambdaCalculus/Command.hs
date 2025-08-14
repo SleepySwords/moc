@@ -10,7 +10,7 @@ import Data.Text (Text, pack)
 import Data.Void (Void)
 import ModelComputation.LambdaCalculus.Parser (SymbolTable, lambdaParser, parseCommand)
 import ModelComputation.LambdaCalculus.Reduction
-import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToInteger)
+import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToInteger, churchEncodingToBool)
 import System.Console.ANSI (getTerminalSize, setCursorColumn)
 import System.Console.Haskeline
 import Text.Megaparsec (MonadParsec (eof), parse)
@@ -28,6 +28,9 @@ evaluateLambda reduceFunction expression = do
   printLambdaWithContext $ last steps
 
   case churchEncodingToInteger (last steps) of
+    Just v -> outputStrLn ("Also known as value " ++ show v)
+    Nothing -> return ()
+  case churchEncodingToBool (last steps) of
     Just v -> outputStrLn ("Also known as value " ++ show v)
     Nothing -> return ()
 

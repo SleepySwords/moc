@@ -98,6 +98,8 @@ newSymbolTable =
     [ ("True", "\\xy.x"),
       ("False", "\\xy.y"),
       ("If", "\\bxy.b x y"),
+      ("And", "\\xy.If x y False"),
+      ("Or", "\\xy.If x True y"),
 
       ("Const", "True"),
 

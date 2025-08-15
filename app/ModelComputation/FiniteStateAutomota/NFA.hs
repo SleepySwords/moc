@@ -1,13 +1,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TupleSections #-}
 
 module ModelComputation.FiniteStateAutomota.NFA where
 
-import qualified Control.Applicative as Set
-import Data.Foldable (Foldable (..))
-import Data.List
-import Data.Set (Set, difference, empty, fromList, insert, member)
-import qualified Data.Set (map)
-import Debug.Trace (trace)
+import Data.List hiding (insert)
+import Data.Set (Set, difference, empty, insert, member, toList)
 
 type Symbol = Char
 
@@ -63,9 +60,12 @@ instance Show NondeterministFiniteAutomota where
 
 data Result = Success | Failiure deriving (Show, Eq, Ord)
 
-(|||) :: Result -> Result -> Result
-Failiure ||| Failiure = Failiure
-_ ||| _ = Success
+instance Semigroup Result where
+  Failiure <> Failiure = Failiure
+  _ <> _ = Success
+
+instance Monoid Result where
+  mempty = Failiure
 
 type AutomotaInstance = (AString, State)
 
@@ -78,26 +78,23 @@ initialiseMachine NondetermisticFiniteAutomota {initialState} str = (str, initia
 transitionFunction :: NondeterministFiniteAutomota -> (State, Symbol) -> Maybe (Set State)
 transitionFunction NondetermisticFiniteAutomota {transitionFunctions} l = lookup l transitionFunctions
 
+anyValid :: NondeterministFiniteAutomota -> AString -> Set State -> Set State -> Result
+anyValid nfa str eTransitions states = mconcat $ map (isValid nfa eTransitions . (str,)) $ toList states
+
 isValid :: NondeterministFiniteAutomota -> Set State -> AutomotaInstance -> Result
 isValid nfa emptyTransitions ([], state) = if member state (finalStates nfa) then Success else resultEmpty
   where
-    anyValid :: AString -> Set State -> Set State -> Result
-    anyValid st eTransitions a = if Success `elem` Data.Set.map (\x -> isValid nfa eTransitions (st, x)) a then Success else Failiure
-    emptyStates = transitionFunction nfa (state, emptyString)
-    resultEmpty = maybe Failiure (anyValid [] (Data.Set.insert state emptyTransitions) . (`difference` emptyTransitions)) emptyStates
-isValid nfa emptyTransitions (s : str, state) = result ||| resultEmpty
+    eTransitions = transitionFunction nfa (state, emptyString)
+    resultEmpty = maybe Failiure (anyValid nfa [] (insert state emptyTransitions) . (`difference` emptyTransitions)) eTransitions
+isValid nfa emptyTransitions (s : str, state) = result <> resultEmpty
   where
-    anyValid :: AString -> Set State -> Set State -> Result
-    anyValid st eTransitions a = if Success `elem` Data.Set.map (\x -> isValid nfa eTransitions (st, x)) a then Success else Failiure
-    nextStates = transitionFunction nfa (state, s)
-    result = maybe Failiure (anyValid str empty) nextStates
-    emptyStates = transitionFunction nfa (state, emptyString)
-    resultEmpty = maybe Failiure (anyValid (s : str) (Data.Set.insert state emptyTransitions) . (`difference` emptyTransitions)) emptyStates
+    tranitions = transitionFunction nfa (state, s)
+    result = maybe Failiure (anyValid nfa str empty) tranitions
+    eTransitions = transitionFunction nfa (state, emptyString)
+    
+    resultEmpty = maybe Failiure (anyValid nfa (s : str) (insert state emptyTransitions) . (`difference` emptyTransitions)) eTransitions
 
 runNFA :: NondeterministFiniteAutomota -> AString -> Result
 runNFA nfa str = isValid nfa empty initialMachine
   where
     initialMachine = initialiseMachine nfa str
-
--- translateToDFA :: NondetermenistFiniteAutomota -> DeterministFiniteAutomota
--- translateToDFA

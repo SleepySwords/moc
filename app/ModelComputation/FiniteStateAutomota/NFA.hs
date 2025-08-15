@@ -2,10 +2,12 @@
 
 module ModelComputation.FiniteStateAutomota.NFA where
 
+import qualified Control.Applicative as Set
 import Data.Foldable (Foldable (..))
 import Data.List
-import Data.Set (Set, fromList, member)
+import Data.Set (Set, difference, empty, fromList, insert, member)
 import qualified Data.Set (map)
+import Debug.Trace (trace)
 
 type Symbol = Char
 
@@ -76,20 +78,24 @@ initialiseMachine NondetermisticFiniteAutomota {initialState} str = (str, initia
 transitionFunction :: NondeterministFiniteAutomota -> (State, Symbol) -> Maybe (Set State)
 transitionFunction NondetermisticFiniteAutomota {transitionFunctions} l = lookup l transitionFunctions
 
--- FIXME: implement the empty string
-isValid :: NondeterministFiniteAutomota -> AutomotaInstance -> Result
-isValid NondetermisticFiniteAutomota {finalStates} ([], state) = if member state finalStates then Success else Failiure
-isValid nfa (s : str, state) = result ||| resultEmpty
+isValid :: NondeterministFiniteAutomota -> Set State -> AutomotaInstance -> Result
+isValid nfa emptyTransitions ([], state) = if member state (finalStates nfa) then Success else resultEmpty
   where
-    anyValid :: AString -> Set State -> Result
-    anyValid st a = if Success `elem` Data.Set.map (\x -> isValid nfa (st, x)) a then Success else Failiure
-    nextStates = transitionFunction nfa (state, s)
-    result = maybe Failiure (anyValid str) nextStates
+    anyValid :: AString -> Set State -> Set State -> Result
+    anyValid st eTransitions a = if Success `elem` Data.Set.map (\x -> isValid nfa eTransitions (st, x)) a then Success else Failiure
     emptyStates = transitionFunction nfa (state, emptyString)
-    resultEmpty = maybe Failiure (anyValid (s : str)) emptyStates
+    resultEmpty = maybe Failiure (anyValid [] (Data.Set.insert state emptyTransitions) . (`difference` emptyTransitions)) emptyStates
+isValid nfa emptyTransitions (s : str, state) = result ||| resultEmpty
+  where
+    anyValid :: AString -> Set State -> Set State -> Result
+    anyValid st eTransitions a = if Success `elem` Data.Set.map (\x -> isValid nfa eTransitions (st, x)) a then Success else Failiure
+    nextStates = transitionFunction nfa (state, s)
+    result = maybe Failiure (anyValid str empty) nextStates
+    emptyStates = transitionFunction nfa (state, emptyString)
+    resultEmpty = maybe Failiure (anyValid (s : str) (Data.Set.insert state emptyTransitions) . (`difference` emptyTransitions)) emptyStates
 
 runNFA :: NondeterministFiniteAutomota -> AString -> Result
-runNFA nfa str = isValid nfa initialMachine
+runNFA nfa str = isValid nfa empty initialMachine
   where
     initialMachine = initialiseMachine nfa str
 

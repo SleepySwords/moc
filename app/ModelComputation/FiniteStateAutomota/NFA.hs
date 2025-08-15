@@ -2,7 +2,9 @@
 
 module ModelComputation.FiniteStateAutomota.NFA where
 
-import Data.Set (Set, member)
+import Data.Foldable (Foldable (..))
+import Data.List
+import Data.Set (Set, fromList, member)
 import qualified Data.Set (map)
 
 type Symbol = Char
@@ -19,13 +21,43 @@ type AString = [Symbol]
 
 type TransitionFunction = ((State, Symbol), Set State)
 
-data NondeterministFiniteAutomota = NondetermenistFiniteAutomota
+data NondeterministFiniteAutomota = NondetermisticFiniteAutomota
   { states :: Set State,
     alphabet :: Set Symbol,
     transitionFunctions :: [TransitionFunction],
     initialState :: State,
     finalStates :: Set State
   }
+
+instance Show NondeterministFiniteAutomota where
+  show
+    NondetermisticFiniteAutomota
+      { states,
+        alphabet,
+        transitionFunctions,
+        initialState,
+        finalStates
+      } =
+      ( "states = {"
+          ++ intercalate ", " (toList states)
+          ++ "}\n"
+      )
+        ++ ( "alphabet = {"
+               ++ intercalate ", " ((: []) <$> toList alphabet)
+               ++ "}\n"
+           )
+        ++ ( "transitionFunctions = {"
+               ++ intercalate ", " ((\((a, b), c) -> "(" ++ a ++ "," ++ [b] ++ ") --> {" ++ intercalate ", " (toList c) ++ "}") <$> transitionFunctions)
+               ++ "}\n"
+           )
+        ++ ( "initialState = "
+               ++ initialState
+               ++ "\n"
+           )
+        ++ ( "finalStates = {"
+               ++ intercalate ", " (toList finalStates)
+               ++ "}"
+           )
 
 data Result = Success | Failiure deriving (Show, Eq, Ord)
 
@@ -39,14 +71,14 @@ emptyString :: Symbol
 emptyString = 'λ'
 
 initialiseMachine :: NondeterministFiniteAutomota -> AString -> AutomotaInstance
-initialiseMachine NondetermenistFiniteAutomota {initialState} str = (str, initialState)
+initialiseMachine NondetermisticFiniteAutomota {initialState} str = (str, initialState)
 
 transitionFunction :: NondeterministFiniteAutomota -> (State, Symbol) -> Maybe (Set State)
-transitionFunction NondetermenistFiniteAutomota {transitionFunctions} l = lookup l transitionFunctions
+transitionFunction NondetermisticFiniteAutomota {transitionFunctions} l = lookup l transitionFunctions
 
 -- FIXME: implement the empty string
 isValid :: NondeterministFiniteAutomota -> AutomotaInstance -> Result
-isValid NondetermenistFiniteAutomota {finalStates} ([], state) = if member state finalStates then Success else Failiure
+isValid NondetermisticFiniteAutomota {finalStates} ([], state) = if member state finalStates then Success else Failiure
 isValid nfa (s : str, state) = result ||| resultEmpty
   where
     anyValid :: AString -> Set State -> Result
@@ -54,7 +86,7 @@ isValid nfa (s : str, state) = result ||| resultEmpty
     nextStates = transitionFunction nfa (state, s)
     result = maybe Failiure (anyValid str) nextStates
     emptyStates = transitionFunction nfa (state, emptyString)
-    resultEmpty = maybe Failiure (anyValid (s:str)) emptyStates
+    resultEmpty = maybe Failiure (anyValid (s : str)) emptyStates
 
 runNFA :: NondeterministFiniteAutomota -> AString -> Result
 runNFA nfa str = isValid nfa initialMachine
@@ -62,4 +94,4 @@ runNFA nfa str = isValid nfa initialMachine
     initialMachine = initialiseMachine nfa str
 
 -- translateToDFA :: NondetermenistFiniteAutomota -> DeterministFiniteAutomota
--- translateToDFA 
+-- translateToDFA

@@ -7,7 +7,7 @@ import Data.Set (fromList)
 import Data.Text (pack)
 import ModelComputation.FiniteStateAutomota.DFA (runDFA)
 import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
-import ModelComputation.FiniteStateAutomota.Parser (parseAutomota)
+import ModelComputation.FiniteStateAutomota.Parser (parseDetermisticAutomota, parseNondetermisticAutomota)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (lambdaParser, newSymbolTable)
 import ModelComputation.LambdaCalculus.Reduction (lambdaReduceCBV, lambdaReduceNormal, normalisation)
@@ -15,7 +15,7 @@ import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine, verifyMachine)
 import System.Console.Haskeline (defaultSettings, getInputLine, outputStrLn, runInputT)
 import System.Environment (getArgs)
-import Text.Megaparsec (MonadParsec (eof),  parse, parseTest)
+import Text.Megaparsec (MonadParsec (eof), errorBundlePretty, parse, parseTest)
 
 main :: IO ()
 main = getArgs >>= parseArgument
@@ -56,8 +56,8 @@ runLambdaMode a = do
   where
     -- run = either (outputStrLn . show) (evaluateLambda (lambdaReduceGreedyMemo Map.empty)) . parseLambda defaultSymbolTable
     -- run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
-    runNormalise = either (outputStrLn . show) (outputStrLn . show . normalisation) . parseLambda symbols
-    run = either (outputStrLn . show) (evaluateLambda lambdaReduceNormal) . parseLambda symbols
+    runNormalise = either (outputStrLn . errorBundlePretty) (outputStrLn . show . normalisation) . parseLambda symbols
+    run = either (outputStrLn . errorBundlePretty) (evaluateLambda lambdaReduceNormal) . parseLambda symbols
     symbols = foldl foldF Data.Map.empty newSymbolTable
     foldF s (k, l) = either (const s) (\v -> Data.Map.insert k v s) (parseLambda s l)
 
@@ -107,7 +107,7 @@ runDFAMode :: String -> IO ()
 runDFAMode filename = do
   dfaText <- readFile filename
 
-  case parse parseAutomota "Failed" (pack dfaText) of
+  case parse parseDetermisticAutomota filename (pack dfaText) of
     Right dfa -> do
       putStrLn "Parsed deterministic finite state automota:"
       putStrLn ""
@@ -115,35 +115,36 @@ runDFAMode filename = do
       putStrLn ""
       runInputT defaultSettings (runTest dfa)
     Left err -> do
-      print (show err)
+      putStrLn (errorBundlePretty err)
   where
     runTest dfa = do
       toEval <- getInputLine "Test Str> "
       maybe (outputStrLn "") (outputStrLn . show . runDFA dfa) toEval
       runTest dfa
 
-runNFAMode :: IO ()
-runNFAMode = do
-  let nfa =
-        NFA.NondetermenistFiniteAutomota
-          { NFA.states = fromList ["q0", "q1", "q2", "q3", "q4"],
-            NFA.alphabet = fromList ['a', 'b'],
-            NFA.transitionFunctions =
-              [ (("q0", 'a'), fromList ["q1", "q2"]),
-                (("q1", 'a'), fromList ["q0"]),
-                (("q2", 'a'), fromList ["q3"]),
-                (("q3", 'b'), fromList ["q0"]),
-                (("q0", 'b'), fromList ["q4"])
-              ],
-            NFA.initialState = "q0",
-            NFA.finalStates = fromList ["q4"]
-          }
-  print $ NFA.runNFA nfa "aaaabb"
+runNFAMode :: String -> IO ()
+runNFAMode filename = do
+  dfaText <- readFile filename
+
+  case parse parseNondetermisticAutomota filename (pack dfaText) of
+    Right nfa -> do
+      putStrLn "Parsed nondeterministic finite state automota:"
+      putStrLn ""
+      print nfa
+      putStrLn ""
+      runInputT defaultSettings (runTest nfa)
+    Left err -> do
+      putStrLn (errorBundlePretty err)
+  where
+    runTest nfa = do
+      toEval <- getInputLine "Test Str> "
+      maybe (outputStrLn "") (outputStrLn . show . NFA.runNFA nfa) toEval
+      runTest nfa
 
 parseArgument :: [String] -> IO ()
 parseArgument ["lambda", a] = runLambdaMode a
 parseArgument ["lambda"] = runLambdaMode ""
 parseArgument ["turing"] = runTuringMode
 parseArgument ["dfa", a] = runDFAMode a
-parseArgument ["nfa"] = runNFAMode
+parseArgument ["nfa", a] = runNFAMode a
 parseArgument _ = putStrLn "Unknown mode: Use either lambda, turing, dfa or nfa"

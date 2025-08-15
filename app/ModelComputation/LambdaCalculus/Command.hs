@@ -13,7 +13,7 @@ import ModelComputation.LambdaCalculus.Reduction
 import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToInteger, churchEncodingToBool)
 import System.Console.ANSI (getTerminalSize, setCursorColumn)
 import System.Console.Haskeline
-import Text.Megaparsec (MonadParsec (eof), parse)
+import Text.Megaparsec (MonadParsec (eof), parse, errorBundlePretty)
 import Text.Megaparsec.Error (ParseErrorBundle)
 
 parseLambda :: SymbolTable -> String -> Either (ParseErrorBundle Text Void) (Expr ())
@@ -74,9 +74,9 @@ replCommand :: (Expr ReduceInfo -> [Expr ReduceInfo]) -> SymbolTable -> InputT I
 replCommand reduceAlgorithm symbolT = do
   toEval <- getInputLine "λ> "
   let (symbolTable, printMonad) = case toEval of
-        Just s -> case parse (parseCommand symbolT <* eof) "Failed" (pack s) of
+        Just s -> case parse (parseCommand symbolT <* eof) "REPL" (pack s) of
           Right expression -> executeCommand reduceAlgorithm symbolT expression
-          Left err -> (symbolT, outputStrLn (show err))
+          Left err -> (symbolT, outputStrLn (errorBundlePretty err))
         Nothing -> (symbolT, return ())
   printMonad
 

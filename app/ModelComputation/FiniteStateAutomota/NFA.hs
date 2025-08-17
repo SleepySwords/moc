@@ -98,7 +98,6 @@ isValid nfa emptyTransitions (s : str, state) = result <> resultEmpty
     tranitions = transitionFunction nfa (state, s)
     result = maybe Failiure (anyValid nfa str empty) tranitions
     eTransitions = transitionFunction nfa (state, emptyString)
-
     resultEmpty = maybe Failiure (anyValid nfa (s : str) (insert state emptyTransitions) . (`difference` emptyTransitions)) eTransitions
 
 runNFA :: NondeterministFiniteAutomota -> AString -> Result
@@ -106,13 +105,20 @@ runNFA nfa str = isValid nfa empty initialMachine
   where
     initialMachine = initialiseMachine nfa str
 
--- Not actually representitive of the delta* function, need to rethink this
--- ie: a --lambda--> b --lambda-->c is not translated properly.
-getSetOfTransitions :: NondeterministFiniteAutomota -> Set State -> Symbol -> Set State
-getSetOfTransitions nfa states s = fromList $ concatMap transitions (toList states)
+achievableStates :: NondeterministFiniteAutomota -> Set State -> Symbol -> Set State
+achievableStates nfa states s = fromList $ concatMap (toList . deltaStarFunction nfa [s]) (toList states)
+
+deltaStarFunction :: NondeterministFiniteAutomota -> [Symbol] -> State -> Set State
+deltaStarFunction nfa [] state = Set.singleton state `Set.union` fromList otherStates
   where
-    combinations a = [(,s), (,emptyString)] <*> [a]
-    transitions a = concatMap toList $ mapMaybe (transitionFunction nfa) (combinations a)
+    eTransitions = transitionFunction nfa (state, emptyString)
+    otherStates = concat $ toList $ maybe Set.empty (Set.map (toList . deltaStarFunction nfa [])) eTransitions
+deltaStarFunction nfa (s : str) state = fromList eStates `Set.union` fromList states
+  where
+    eTransitions = transitionFunction nfa (state, emptyString)
+    eStates = concat $ toList $ maybe Set.empty (Set.map (toList . deltaStarFunction nfa (s : str))) eTransitions
+    transitions = transitionFunction nfa (state, s)
+    states = concat $ toList $ maybe Set.empty (Set.map (toList . deltaStarFunction nfa str)) transitions
 
 type TransitionFunctionIntermediate = ((Set State, Symbol), Set State)
 
@@ -143,13 +149,13 @@ translateNFA nfa@(NondetermisticFiniteAutomota {initialState, alphabet, finalSta
         { states_i = fromList [fromList [initialState]],
           transitionFunctions_i = [],
           initialState_i = fromList [initialState],
-          finalStates_i = empty,
+          finalStates_i = if runNFA nfa [] == Success then Set.singleton (Set.singleton initialState) else empty,
           visited = empty
         }
     step :: IntermediateFiniteAutomota -> IntermediateFiniteAutomota
     step ifa@(IntermediateFiniteAutomota {visited, states_i, transitionFunctions_i}) = case Set.lookupMin toVisit of
       Just s ->
-        let transitions = map (\a -> ((s, a), getSetOfTransitions nfa s a)) (toList alphabet)
+        let transitions = map (\a -> ((s, a), achievableStates nfa s a)) (toList alphabet)
          in step
               IntermediateFiniteAutomota
                 { states_i = states_i `Set.union` fromList (map snd transitions),

@@ -1,0 +1,12 @@
+states = { q0, q1, q2 }
+alphabet = { a, b }
+transitionFunctions = { 
+    (q0, a) --> q1,
+    (q0, λ) --> q2,
+    (q1, b) --> q2,
+    (q1, c) --> q2,
+    (q2, λ) --> q1,
+    (q2, λ) --> q0
+}
+initialState = q0
+finalStates = { q1, q2 }

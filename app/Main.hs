@@ -16,6 +16,7 @@ import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..
 import System.Console.Haskeline (defaultSettings, getInputLine, outputStrLn, runInputT)
 import System.Environment (getArgs)
 import Text.Megaparsec (MonadParsec (eof), errorBundlePretty, parse, parseTest)
+import ModelComputation.FiniteStateAutomota.NFA (translateNFA)
 
 main :: IO ()
 main = getArgs >>= parseArgument
@@ -141,10 +142,23 @@ runNFAMode filename = do
       maybe (outputStrLn "") (outputStrLn . show . NFA.runNFA nfa) toEval
       runTest nfa
 
+runNFATranslateMode :: String -> IO ()
+runNFATranslateMode filename = do
+  dfaText <- readFile filename
+
+  case parse parseNondetermisticAutomota filename (pack dfaText) of
+    Right nfa -> do
+      let x = translateNFA nfa
+      print x
+    Left err -> do
+      putStrLn (errorBundlePretty err)
+
+
 parseArgument :: [String] -> IO ()
 parseArgument ["lambda", a] = runLambdaMode a
 parseArgument ["lambda"] = runLambdaMode ""
 parseArgument ["turing"] = runTuringMode
 parseArgument ["dfa", a] = runDFAMode a
 parseArgument ["nfa", a] = runNFAMode a
+parseArgument ["translate_nfa", a] = runNFATranslateMode a
 parseArgument _ = putStrLn "Unknown mode: Use either lambda, turing, dfa or nfa"

@@ -6,7 +6,8 @@ transitionFunctions = {
     (q1, a) --> q0,
     (q2, a) --> q3,
     (q3, b) --> q0,
-    (q0, b) --> q4
+    (q0, b) --> q4,
+    (q0, λ) --> q4
 }
 initialState = q0
 finalStates = { q4 }

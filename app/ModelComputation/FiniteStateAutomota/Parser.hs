@@ -4,17 +4,18 @@ module ModelComputation.FiniteStateAutomota.Parser where
 
 import Control.Applicative (Alternative ((<|>)), optional)
 import Control.Monad (void)
+import Data.Function (on)
+import Data.List (groupBy, sortOn)
 import Data.Set (fromList)
 import Data.Text (Text)
 import Data.Void (Void)
-import qualified ModelComputation.FiniteStateAutomota.DFA as D
 import ModelComputation.FiniteStateAutomota.DFA (DeterministFiniteAutomota)
+import qualified ModelComputation.FiniteStateAutomota.DFA as D
+import ModelComputation.FiniteStateAutomota.NFA as N
 import Text.Megaparsec (Parsec, between, many, sepBy, single)
-import Text.Megaparsec.Char (alphaNumChar, newline, space1)
+import Text.Megaparsec.Char (alphaNumChar, newline, space1, symbolChar)
 import Text.Megaparsec.Char.Lexer ()
 import qualified Text.Megaparsec.Char.Lexer as L
-import Data.List (groupBy)
-import ModelComputation.FiniteStateAutomota.NFA as N
 
 type Parser a = Parsec Void Text a
 
@@ -51,16 +52,20 @@ parseTheExpression st itemParser = symbol st >> symbol "=" >> itemParser <* newl
 parsePair :: Parser a -> Parser b -> Parser (a, b)
 parsePair fstParser sndParser = between (single '(') (single ')') $ (,) <$> fstParser <* symbol "," <*> sndParser
 
+setItemChars = alphaNumChar <|> symbolChar <|> single '[' <|> single ']'
+
 parseFunction :: Parser ((String, Char), String)
-parseFunction = (,) <$> parsePair (many alphaNumChar) alphaNumChar <* space1 <* symbol "-->" <*> many alphaNumChar
+parseFunction = (,) <$> parsePair (many setItemChars) alphaNumChar <* space1 <* symbol "-->" <*> many setItemChars
+
+setItemChars :: Parser Char
 
 parseDetermisticAutomota :: Parser DeterministFiniteAutomota
 parseDetermisticAutomota = do
-  parsedStates <- parseTheExpression "states" (parseSet (many alphaNumChar))
+  parsedStates <- parseTheExpression "states" (parseSet (many setItemChars))
   parsedAlphabet <- parseTheExpression "alphabet" (parseSet alphaNumChar)
   parsedFunction <- parseTheExpression "transitionFunctions" (parseSet parseFunction)
-  parsedInitialState <- parseTheExpression "initialState" (many alphaNumChar)
-  parsedFinalState <- parseTheExpression "finalStates " (parseSet (many alphaNumChar))
+  parsedInitialState <- parseTheExpression "initialState" (many setItemChars)
+  parsedFinalState <- parseTheExpression "finalStates " (parseSet (many setItemChars))
 
   return
     D.DeterministFiniteAutomota
@@ -73,15 +78,15 @@ parseDetermisticAutomota = do
 
 parseNondetermisticAutomota :: Parser NondeterministFiniteAutomota
 parseNondetermisticAutomota = do
-  parsedStates <- parseTheExpression "states" (parseSet (many alphaNumChar))
+  parsedStates <- parseTheExpression "states" (parseSet (many setItemChars))
   parsedAlphabet <- parseTheExpression "alphabet" (parseSet alphaNumChar)
   parsedFunction <- parseTheExpression "transitionFunctions" (parseSet parseFunction)
-  parsedInitialState <- parseTheExpression "initialState" (many alphaNumChar)
-  parsedFinalState <- parseTheExpression "finalStates " (parseSet (many alphaNumChar))
+  parsedInitialState <- parseTheExpression "initialState" (many setItemChars)
+  parsedFinalState <- parseTheExpression "finalStates " (parseSet (many setItemChars))
 
   -- There will always be one element per group
   -- Wow wtf is this
-  let groupedFunctions = map (\lst -> (fst $ head lst, fromList $ map snd lst)) $ groupBy (\a b -> fst a == fst b) parsedFunction
+  let groupedFunctions = map (\lst -> (fst $ head lst, fromList $ map snd lst)) $ groupBy ((==) `on` fst) (sortOn fst parsedFunction)
 
   return
     NondetermisticFiniteAutomota

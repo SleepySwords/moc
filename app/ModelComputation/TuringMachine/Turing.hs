@@ -1,10 +1,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module ModelComputation.Turing where
+module ModelComputation.TuringMachine.Turing where
 
 import Control.Lens
 import Data.List (intercalate)
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Set (Set, isSubsetOf)
 import Utils (scanUntil)
 
@@ -26,13 +26,14 @@ type TransitionFunction = ((State, Symbol), (State, Symbol, Shift))
 
 data TuringMachine = TuringMachine
   { states :: Set State,
+    inputSymbols :: Symbols,
     tapeAlphabet :: Symbols,
     blank :: Symbol,
-    inputSymbols :: Symbols,
     transitionFunctions :: [TransitionFunction],
     initialState :: State,
     finalStates :: Set State
   }
+  deriving (Show)
 
 initialiseMachine :: TuringMachine -> Tape -> (Tape, State, Int)
 initialiseMachine tm tape = (tape, initialState tm, 0)
@@ -74,17 +75,24 @@ printState tm (tape, state, position) =
     contextString (newState, newSymbol, shift) =
       " -> " ++ intercalate "," [newState, [newSymbol], show shift]
 
-step :: TuringMachine -> (Tape, State, Int) -> (Tape, State, Int)
-step tm (tape, state, position) = (newTape, newState, newPosition)
+step :: TuringMachine -> (Tape, State, Int) -> Maybe (Tape, State, Int)
+step tm (tape, state, position) = nextState <$> transition
   where
     tapeSymbol = fromMaybe (blank tm) (tape ^? element position)
-    (newState, newSymbol, shift) = fromJust $ transitionFunction tm (state, tapeSymbol)
-    newTape = take position tape ++ newSymbol : drop (position + 1) tape
-    newPosition = case shift of
+    transition = transitionFunction tm (state, tapeSymbol)
+    newTape newSymbol = take position tape ++ newSymbol : drop (position + 1) tape
+    newPosition shift = case shift of
       LeftShift -> position - 1
       RightShift -> position + 1
+
+    nextState (newState, newSymbol, shift) = (newTape newSymbol, newState, newPosition shift)
 
 runMachine :: TuringMachine -> Tape -> [(Tape, State, Int)]
 runMachine tm tape = states
   where
-    states = scanUntil (\(_, state, _) -> state `elem` finalStates tm) (step tm) (initialiseMachine tm tape)
+    states = scanUntil (step tm) (initialiseMachine tm tape)
+
+isValid :: TuringMachine -> [(Tape, State, Int)] -> Bool
+isValid tm states = checkState (last states)
+  where
+    checkState (_, state, _) = state `elem` finalStates tm

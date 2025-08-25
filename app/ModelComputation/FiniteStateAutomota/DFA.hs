@@ -9,12 +9,6 @@ type Symbol = Char
 
 type State = String
 
-data Shift = LeftShift | RightShift
-
-instance Show Shift where
-  show LeftShift = "L"
-  show RightShift = "R"
-
 type AString = [Symbol]
 
 type TransitionFunction = ((State, Symbol), State)

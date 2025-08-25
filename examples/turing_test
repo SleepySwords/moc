@@ -1,0 +1,11 @@
+states = { b, c, e, f }
+alphabet = { ., 0, 1 }
+inputAlphabet = {}
+transitionFunctions = { 
+    (b, .) --> (c, 0, R),
+    (c, .) --> (e, ., R),
+    (e, .) --> (f, 1, R)
+}
+initialState = b
+finalStates = { f }
+blank = .

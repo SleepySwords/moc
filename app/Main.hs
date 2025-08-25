@@ -2,21 +2,23 @@
 
 module Main where
 
+import Control.Monad.IO.Class (MonadIO)
 import Data.Map (empty, insert)
-import Data.Set (fromList)
 import Data.Text (pack)
 import ModelComputation.FiniteStateAutomota.DFA (runDFA)
+import ModelComputation.FiniteStateAutomota.NFA (translateNFA)
 import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
 import ModelComputation.FiniteStateAutomota.Parser (parseDetermisticAutomota, parseNondetermisticAutomota)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (lambdaParser, newSymbolTable)
 import ModelComputation.LambdaCalculus.Reduction (lambdaReduceCBV, lambdaReduceNormal, normalisation)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
-import ModelComputation.Turing (Shift (LeftShift, RightShift), TuringMachine (..), printState, runMachine, verifyMachine)
-import System.Console.Haskeline (defaultSettings, getInputLine, outputStrLn, runInputT)
+import ModelComputation.TuringMachine.Parser (parseTuringMachine)
+import ModelComputation.TuringMachine.Turing (isValid, printState, runMachine, verifyMachine)
+import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStrLn, runInputT)
 import System.Environment (getArgs)
 import Text.Megaparsec (MonadParsec (eof), errorBundlePretty, parse, parseTest)
-import ModelComputation.FiniteStateAutomota.NFA (translateNFA)
+import Data.Maybe (fromMaybe)
 
 main :: IO ()
 main = getArgs >>= parseArgument
@@ -62,47 +64,32 @@ runLambdaMode a = do
     symbols = foldl foldF Data.Map.empty newSymbolTable
     foldF s (k, l) = either (const s) (\v -> Data.Map.insert k v s) (parseLambda s l)
 
-runTuringMode :: IO ()
-runTuringMode = do
-  let tm =
-        TuringMachine
-          { states = fromList ["b", "c", "e", "f"],
-            tapeAlphabet = fromList ['.', '0', '1'],
-            blank = '.',
-            inputSymbols = fromList [],
-            transitionFunctions =
-              [ (("b", '.'), ("c", '0', RightShift)),
-                (("c", '.'), ("e", '.', RightShift)),
-                (("e", '.'), ("f", '1', RightShift)),
-                (("f", '.'), ("b", '.', RightShift))
-              ],
-            initialState = "b",
-            finalStates = fromList ["f"]
-          }
-  let addition =
-        TuringMachine
-          { states = fromList ["q0", "q1", "q2", "q3"],
-            tapeAlphabet = fromList ['.', '0', 'c', 'X'],
-            blank = '.',
-            inputSymbols = fromList [],
-            transitionFunctions =
-              [ (("q0", '0'), ("q1", 'X', RightShift)),
-                (("q0", 'c'), ("q3", '.', RightShift)),
-                (("q1", '0'), ("q1", '0', RightShift)),
-                (("q1", 'c'), ("q1", 'c', RightShift)),
-                (("q1", '.'), ("q2", '0', LeftShift)),
-                (("q2", '0'), ("q2", '0', LeftShift)),
-                (("q2", 'c'), ("q2", 'c', LeftShift)),
-                (("q2", '0'), ("q2", '0', LeftShift)),
-                (("q2", 'X'), ("q0", '.', RightShift))
-              ],
-            initialState = "q0",
-            finalStates = fromList ["q3"]
-          }
-  print (verifyMachine tm)
-  print (verifyMachine addition)
+outprint :: (MonadIO m, Show s) => s -> InputT m ()
+outprint = outputStrLn . show
 
-  mapM_ (putStrLn . printState tm) (runMachine tm "")
+runTuringMode :: String -> IO ()
+runTuringMode filename = do
+  turingText <- readFile filename
+
+  case parse parseTuringMachine filename (pack turingText) of
+    Right turing ->
+      runInputT
+        defaultSettings
+        ( do
+            outputStrLn "Parsed turing machine:"
+            outputStrLn ""
+            outprint turing
+            outputStrLn ""
+            outprint (verifyMachine turing)
+            toEval <- getInputLine "Test Str> "
+            let output = runMachine turing (fromMaybe "" toEval)
+            mapM_ (outputStrLn . printState turing) output
+            outputStrLn (if isValid turing output then "Accepted" else "Rejected")
+        )
+    Left err -> do
+      putStrLn (errorBundlePretty err)
+
+-- mapM_ (putStrLn . printState tm) (runMachine tm "")
 
 runDFAMode :: String -> IO ()
 runDFAMode filename = do
@@ -153,11 +140,11 @@ runNFATranslateMode filename = do
     Left err -> do
       putStrLn (errorBundlePretty err)
 
-
 parseArgument :: [String] -> IO ()
 parseArgument ["lambda", a] = runLambdaMode a
 parseArgument ["lambda"] = runLambdaMode ""
-parseArgument ["turing"] = runTuringMode
+parseArgument ["turing"] = runTuringMode ""
+parseArgument ["turing", a] = runTuringMode a
 parseArgument ["dfa", a] = runDFAMode a
 parseArgument ["nfa", a] = runNFAMode a
 parseArgument ["translate_nfa", a] = runNFATranslateMode a

@@ -1,5 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
-
 module ModelComputation.LambdaCalculus.Command where
 
 import Control.Monad (forM_)
@@ -10,75 +8,56 @@ import Data.Text (Text, pack)
 import Data.Void (Void)
 import ModelComputation.LambdaCalculus.Parser (SymbolTable, lambdaParser, parseCommand)
 import ModelComputation.LambdaCalculus.Reduction
-import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToInteger, churchEncodingToBool)
-import System.Console.ANSI (getTerminalSize, setCursorColumn)
+import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..), churchEncodingToBool, churchEncodingToInteger)
 import System.Console.Haskeline
-import Text.Megaparsec (MonadParsec (eof), parse, errorBundlePretty)
+import Text.Megaparsec (MonadParsec (eof), errorBundlePretty, parse)
 import Text.Megaparsec.Error (ParseErrorBundle)
+import Data.List (intercalate)
 
 parseLambda :: SymbolTable -> String -> Either (ParseErrorBundle Text Void) (Expr ())
 parseLambda s = parse (lambdaParser s <* eof) "Failed" . pack
 
-evaluateLambda :: (Expr ReduceInfo -> [Expr ReduceInfo]) -> Expr () -> InputT IO ()
-evaluateLambda reduceFunction expression = do
+evaluateLambda :: Bool -> (Expr ReduceInfo -> [DebugExpr]) -> Expr () -> InputT IO ()
+evaluateLambda showAllSteps reduceFunction expression = do
   outputStrLn ""
   outputStrLn ("Evaluating \x1b[35m" ++ show expression ++ "\x1b[0m")
   let steps = reduceFunction (noSub <$ expression)
-  -- mapM_ printLambdaWithContext steps
-  printLambdaWithContext $ last steps
+  mapM_ printLambdaWithContext $ if showAllSteps then steps else [last steps]
 
-  case churchEncodingToInteger (last steps) of
+  case churchEncodingToInteger (fst $ last steps) of
     Just v -> outputStrLn ("Also known as value " ++ show v)
     Nothing -> return ()
-  case churchEncodingToBool (last steps) of
+  case churchEncodingToBool (fst $ last steps) of
     Just v -> outputStrLn ("Also known as value " ++ show v)
     Nothing -> return ()
 
-printLambdaWithContext :: Expr ReduceInfo -> InputT IO ()
-printLambdaWithContext a = do
-  outputStr (show a)
+printLambdaWithContext :: DebugExpr -> InputT IO ()
+printLambdaWithContext (a, DebugInfo substitutions) = do
+  outputStrLn (show a)
   liftIO $ do
-    let subMsg = case map (\(ch, ex) -> "Substituted " ++ [ch] ++ ":=" ++ show (void ex)) (findSubstituted a) of
-          msg : _ -> msg
-          _ -> []
+    let subMsg = intercalate "\n" $ map (\(ch, ex) -> "          " ++ [ch] ++ ":=" ++ show (void ex)) substitutions
+    putStrLn subMsg
 
-    Just (_, width) <- getTerminalSize
-    if length (show (void a)) + length subMsg + 30 > width
-      then
-        putStrLn ""
-      else do
-        setCursorColumn (max 0 (min (width - length subMsg) (width - 50)))
-        putStrLn subMsg
+executeCommand :: Bool -> (Expr ReduceInfo -> [DebugExpr]) -> SymbolTable -> Either (Expr ()) (String, Expr ()) -> (SymbolTable, InputT IO ())
+executeCommand showAllSteps reduceAlgorithm symbolTable (Left expression) = (symbolTable, evaluateLambda showAllSteps reduceAlgorithm expression)
+executeCommand _ _ symbolTable (Right (command, expr)) = (insert command expr symbolTable, outputStrLn ("Inserted " ++ show expr ++ " for " ++ command))
 
-executeCommand ::(Expr ReduceInfo -> [Expr ReduceInfo]) -> SymbolTable -> Either (Expr ()) (String, Expr ()) -> (SymbolTable, InputT IO ())
-executeCommand reduceAlgorithm symbolTable (Left expression) = (symbolTable, evaluateLambda reduceAlgorithm expression)
-executeCommand _ symbolTable (Right (command, expr)) = (insert command expr symbolTable, outputStrLn ("Inserted " ++ show expr ++ " for " ++ command))
-
-findSubstituted :: Expr ReduceInfo -> [(Char, Expr ReduceInfo)]
-findSubstituted s@Var {info = ReduceInfo {substituted = Just x}} = [(x, s)]
-findSubstituted Var {info = ReduceInfo {substituted = _}} = []
-findSubstituted s = case substituted (info s) of
-  Just o -> [(o, s)]
-  Nothing -> case s of
-    Abs {body = b} -> findSubstituted b
-    App {function, input} -> findSubstituted function ++ findSubstituted input
-
-repl :: SymbolTable -> InputT IO ()
-repl s = do
+repl :: SymbolTable -> Bool -> InputT IO ()
+repl s showAllSteps = do
   toEval <- getInputLine "λ> "
-  forM_ toEval (either (outputStrLn . show) (evaluateLambda lambdaReduceNormal) . parseLambda s)
+  forM_ toEval (either (outputStrLn . show) (evaluateLambda showAllSteps lambdaReduceNormal) . parseLambda s)
   outputStrLn ""
-  repl s
+  repl s showAllSteps
 
-replCommand :: (Expr ReduceInfo -> [Expr ReduceInfo]) -> SymbolTable -> InputT IO ()
-replCommand reduceAlgorithm symbolT = do
+replCommand :: Bool -> (Expr ReduceInfo -> [DebugExpr]) -> SymbolTable -> InputT IO ()
+replCommand showAllSteps reduceAlgorithm symbolT = do
   toEval <- getInputLine "λ> "
   let (symbolTable, printMonad) = case toEval of
         Just s -> case parse (parseCommand symbolT <* eof) "REPL" (pack s) of
-          Right expression -> executeCommand reduceAlgorithm symbolT expression
+          Right expression -> executeCommand showAllSteps reduceAlgorithm symbolT expression
           Left err -> (symbolT, outputStrLn (errorBundlePretty err))
         Nothing -> (symbolT, return ())
   printMonad
 
   outputStrLn ""
-  replCommand reduceAlgorithm symbolTable
+  replCommand showAllSteps reduceAlgorithm symbolTable

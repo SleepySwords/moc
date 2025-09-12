@@ -7,30 +7,36 @@
 module ModelComputation.LambdaCalculus.Reduction where
 
 import Control.Applicative
-import Control.Lens ((<&>))
-import Control.Monad.State (MonadState (put), State, get, runState)
+import Control.Monad.State (State)
+import qualified Data.Bifunctor as Bifunctor
 import Data.List (nub, union)
 import Data.Map (Map)
-import qualified Data.Map as Map
-import Debug.Trace (trace)
 import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
 
 type SubstiutionState = State (Map (Expr ReduceInfo) (Expr ReduceInfo))
 
+newtype DebugInfo = DebugInfo
+  { subsitutions :: [(Char, Expr ReduceInfo)]
+  }
+
+type DebugExpr = (Expr ReduceInfo, DebugInfo)
+
 noSub :: ReduceInfo
 noSub = ReduceInfo {substituted = Nothing}
 
-replacedBind :: Char -> ReduceInfo
-replacedBind x = ReduceInfo {substituted = Just x}
+replacedBind :: Expr ReduceInfo -> Char -> Expr ReduceInfo
+replacedBind (Var _ name) x = Var (ReduceInfo {substituted = Just x}) name
+replacedBind (App _ fun input) x = App (ReduceInfo {substituted = Just x}) fun input
+replacedBind (Abs _ bind body) x = Abs (ReduceInfo {substituted = Just x}) bind body
 
 -- t[x := r]
 -- t, s and r are lambda vars
 -- x and y are vars
 -- Inside t, x replaces r
-substitution :: Expr a -> Char -> Expr a -> Expr a
+substitution :: Expr ReduceInfo -> Char -> Expr ReduceInfo -> Expr ReduceInfo
 substitution (Var {info, name}) x r
   -- x[x := r] -> r
-  | name == x = r
+  | name == x = replacedBind r x
   -- y[x := r] -> y, if x != y
   | otherwise = Var info name
 -- (t s)[x := r] -> (t[x := r])(s[x := r])
@@ -45,38 +51,29 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
   | otherwise = substitution (aConversion abst r) x r
 
 -- (λx.t) s -> t[x := s]
-bReduceNormal :: Expr ReduceInfo -> Expr ReduceInfo
-bReduceNormal (App {function = (Abs {bind, body}), input = x}) = substitution body bind x
-bReduceNormal (App {info, function, input}) = App info (bReduceNormal function) (bReduceNormal input)
-bReduceNormal (Abs {info, bind, body}) = Abs info bind (bReduceNormal body)
-bReduceNormal a = a
+bReduceNormal :: Expr ReduceInfo -> DebugExpr
+bReduceNormal (App {function = (Abs {bind, body}), input = x}) = (substitution body bind x, DebugInfo [(bind, x)])
+bReduceNormal (App {info, function, input}) = (App info rFun rInp, DebugInfo (dbgFun ++ dbgInp))
+  where
+    (rFun, DebugInfo dbgFun) = bReduceNormal function
+    (rInp, DebugInfo dbgInp) = bReduceNormal input
+bReduceNormal (Abs {info, bind, body}) = (Abs info bind rBody, DebugInfo dbgBody)
+  where
+    (rBody, DebugInfo dbgBody) = bReduceNormal body
+bReduceNormal a = (a, DebugInfo [])
 
 -- (λx.t) s -> t[x := s]
-bReduceNormalMemo :: Expr ReduceInfo -> SubstiutionState (Expr ReduceInfo)
-bReduceNormalMemo app@(App {function = (Abs {bind, body}), input = x}) = do
-  cacheMap <- get
-  case Map.lookup (normalisation app) cacheMap of
-    Just v -> {- trace "Cache hit" -} return v
-    Nothing -> do
-      let state = substitution body bind x
-      put $ Map.insert (normalisation app) state cacheMap
-      return state
-bReduceNormalMemo (App {info, function, input}) = App info <$> bReduceNormalMemo function <*> bReduceNormalMemo input
-bReduceNormalMemo (Abs {info, bind, body}) = Abs info bind <$> bReduceNormalMemo body
-bReduceNormalMemo a = return a
-
--- (λx.t) s -> t[x := s]
-bReduceCBV :: Expr ReduceInfo -> Maybe (Expr ReduceInfo)
+bReduceCBV :: Expr ReduceInfo -> Maybe DebugExpr
 bReduceCBV (App {info, function = f@(Abs {bind, body}), input = x}) =
-  App info f <$> bReduceCBV x
-    <|> (\a -> App info a x) <$> bReduceCBV f
-    <|> Just (substitution body bind x)
+  Bifunctor.first (App info f) <$> bReduceCBV x
+    <|> (\(a, d) -> (App info a x, d)) <$> bReduceCBV f
+    <|> Just (substitution body bind x, DebugInfo [(bind, x)])
 bReduceCBV (App {info, function = f, input = x}) =
-  App info f <$> bReduceCBV x
-    <|> (\a -> App info a x) <$> bReduceCBV f
+  Bifunctor.first (App info f) <$> bReduceCBV x
+    <|> (\(a, d) -> (App info a x, d)) <$> bReduceCBV f
 bReduceCBV _ = Nothing
 
-aConversion :: Expr a -> Expr a -> Expr a
+aConversion :: Expr ReduceInfo -> Expr ReduceInfo -> Expr ReduceInfo
 aConversion abst@(Abs {info, bind, body}) toSub = Abs info suitable_char (substitution body bind (Var info suitable_char))
   where
     suitable_char = head [x | x <- ['a' .. 'z'], not $ isVar abst x, not $ isFreeVar toSub x]
@@ -105,33 +102,16 @@ isVar (Abs {body}) a = isVar body a
 isVar (Var {name = x}) a = x == a
 isVar (App {function = lhs, input = rhs}) a = isVar lhs a || isVar rhs a
 
-lambdaReduceNormal :: Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduceNormal :: Expr ReduceInfo -> [DebugExpr]
 lambdaReduceNormal expression
-  | expression == result = [expression]
-  | otherwise = expression : lambdaReduceNormal result
+  | expression == fst result = [(expression, DebugInfo [])]
+  | otherwise = result : lambdaReduceNormal (fst result)
   where
-    result = bReduceNormal expression
+    result = bReduceNormal (noSub <$ expression)
 
-lambdaReduceNormalMemo :: Map (Expr ReduceInfo) (Expr ReduceInfo) -> Expr ReduceInfo -> [Expr ReduceInfo]
-lambdaReduceNormalMemo cacheMap expression
-  | expression == result = [expression]
-  | otherwise = expression : lambdaReduceNormalMemo cache result
-  where
-    (result, cache) = runState (bReduceNormalMemo expression) cacheMap
-
-normalisation :: Expr a -> Expr a
--- A free variable so do not change anything
-normalisation (Var info x) = Var info x
-normalisation (App {input = input, info = info, function = fun}) = App info (normalisation input) (normalisation fun)
-normalisation (Abs {body = body, info = info, bind = bind}) = Abs info potentialFree (normalisation $ substitution body bind (Var info potentialFree))
-  where
-    -- Using capitals as the parser dissalows capitals and
-    -- hence they cannot conflict (we will have to store the lower case version when memorising).
-    potentialFree = head $ filter (not . isVar body) ['A' .. 'Z']
-
-lambdaReduceCBV :: Expr ReduceInfo -> [Expr ReduceInfo]
+lambdaReduceCBV :: Expr ReduceInfo -> [DebugExpr]
 lambdaReduceCBV expression
-  | Just exp <- result = expression : lambdaReduceCBV exp
-  | otherwise = [expression]
+  | Just exp <- result =  exp : lambdaReduceNormal (fst exp)
+  | otherwise = []
   where
     result = bReduceCBV expression

@@ -4,6 +4,7 @@ module Main where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.Map (empty, insert)
+import Data.Maybe (fromMaybe)
 import Data.Text (pack)
 import ModelComputation.FiniteStateAutomota.DFA (runDFA)
 import ModelComputation.FiniteStateAutomota.NFA (translateNFA)
@@ -11,20 +12,19 @@ import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
 import ModelComputation.FiniteStateAutomota.Parser (parseDetermisticAutomota, parseNondetermisticAutomota)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (lambdaParser, newSymbolTable)
-import ModelComputation.LambdaCalculus.Reduction (lambdaReduceCBV, lambdaReduceNormal, normalisation)
+import ModelComputation.LambdaCalculus.Reduction (lambdaReduceCBV, lambdaReduceNormal)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.TuringMachine.Parser (parseTuringMachine)
 import ModelComputation.TuringMachine.Turing (isValid, printState, runMachine, verifyMachine)
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStrLn, runInputT)
 import System.Environment (getArgs)
 import Text.Megaparsec (MonadParsec (eof), errorBundlePretty, parse, parseTest)
-import Data.Maybe (fromMaybe)
 
 main :: IO ()
 main = getArgs >>= parseArgument
 
-runLambdaMode :: String -> IO ()
-runLambdaMode a = do
+runLambdaMode :: [String] -> IO ()
+runLambdaMode args = do
   parseTest (lambdaParser symbols <* eof) "\\x. x \\a.x \\y.y"
   parseTest (lambdaParser symbols <* eof) "(\\x. (\\a.x \\y.y) x) a"
   parseTest (lambdaParser symbols <* eof) "\\xy.x"
@@ -49,18 +49,20 @@ runLambdaMode a = do
         run "- 10 3"
         run "+ 10 3"
         run "10"
-        runNormalise "\\x.\\y.x y"
-        runNormalise "\\b.\\a.b a"
+        -- runNormalise "\\x.\\y.x y"
+        -- runNormalise "\\b.\\a.b a"
     )
 
   print $ integerToChurchEncoding 3
 
-  runInputT defaultSettings (replCommand (if a == "cbv" then lambdaReduceCBV else lambdaReduceNormal) symbols)
+  runInputT defaultSettings (replCommand runAllSteps lambdaReduce symbols)
   where
+    runAllSteps = "all" `elem` args
+    lambdaReduce = if "cbv" `elem` args then lambdaReduceCBV else lambdaReduceNormal
     -- run = either (outputStrLn . show) (evaluateLambda (lambdaReduceGreedyMemo Map.empty)) . parseLambda defaultSymbolTable
     -- run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
-    runNormalise = either (outputStrLn . errorBundlePretty) (outputStrLn . show . normalisation) . parseLambda symbols
-    run = either (outputStrLn . errorBundlePretty) (evaluateLambda lambdaReduceNormal) . parseLambda symbols
+    -- runNormalise = either (outputStrLn . errorBundlePretty) (outputStrLn . show . normalisation) . parseLambda symbols
+    run = either (outputStrLn . errorBundlePretty) (evaluateLambda False lambdaReduceNormal) . parseLambda symbols
     symbols = foldl foldF Data.Map.empty newSymbolTable
     foldF s (k, l) = either (const s) (\v -> Data.Map.insert k v s) (parseLambda s l)
 
@@ -141,8 +143,8 @@ runNFATranslateMode filename = do
       putStrLn (errorBundlePretty err)
 
 parseArgument :: [String] -> IO ()
-parseArgument ["lambda", a] = runLambdaMode a
-parseArgument ["lambda"] = runLambdaMode ""
+parseArgument ("lambda" : x) = runLambdaMode x
+parseArgument ["lambda"] = runLambdaMode []
 parseArgument ["turing"] = runTuringMode ""
 parseArgument ["turing", a] = runTuringMode a
 parseArgument ["dfa", a] = runDFAMode a

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Main where
 
@@ -12,7 +13,7 @@ import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
 import ModelComputation.FiniteStateAutomota.Parser (parseDetermisticAutomota, parseNondetermisticAutomota)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (lambdaParser, newSymbolTable)
-import ModelComputation.LambdaCalculus.Reduction (lambdaReduceCBV, lambdaReduceNormal)
+import ModelComputation.LambdaCalculus.Reduction (DebugInfo (DebugInfo, subsitutions), bReduceCBV, bReduceNormal, lambdaReduceCBV, lambdaReduceMem)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.TuringMachine.Parser (parseTuringMachine)
 import ModelComputation.TuringMachine.Turing (isValid, printState, runMachine, verifyMachine)
@@ -58,11 +59,11 @@ runLambdaMode args = do
   runInputT defaultSettings (replCommand runAllSteps lambdaReduce symbols)
   where
     runAllSteps = "all" `elem` args
-    lambdaReduce = if "cbv" `elem` args then lambdaReduceCBV else lambdaReduceNormal
+    lambdaReduce = if "cbv" `elem` args then bReduceCBV else bReduceNormal
     -- run = either (outputStrLn . show) (evaluateLambda (lambdaReduceGreedyMemo Map.empty)) . parseLambda defaultSymbolTable
     -- run = either (outputStrLn . show) (evaluateLambda lambdaReduceGreedy) . parseLambda defaultSymbolTable
     -- runNormalise = either (outputStrLn . errorBundlePretty) (outputStrLn . show . normalisation) . parseLambda symbols
-    run = either (outputStrLn . errorBundlePretty) (evaluateLambda False lambdaReduceNormal) . parseLambda symbols
+    run = either (outputStrLn . errorBundlePretty) (evaluateLambda False bReduceNormal) . parseLambda symbols
     symbols = foldl foldF Data.Map.empty newSymbolTable
     foldF s (k, l) = either (const s) (\v -> Data.Map.insert k v s) (parseLambda s l)
 
@@ -144,7 +145,6 @@ runNFATranslateMode filename = do
 
 parseArgument :: [String] -> IO ()
 parseArgument ("lambda" : x) = runLambdaMode x
-parseArgument ["lambda"] = runLambdaMode []
 parseArgument ["turing"] = runTuringMode ""
 parseArgument ["turing", a] = runTuringMode a
 parseArgument ["dfa", a] = runDFAMode a

@@ -51,33 +51,41 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
   | otherwise = substitution (aConversion abst r) x r
 
 -- (λx.t) s -> t[x := s]
-bReduceNormal :: Expr ReduceInfo -> DebugExpr
-bReduceNormal (App {function = (Abs {bind, body}), input = x}) = (substitution body bind x, DebugInfo [(bind, x)])
-bReduceNormal (App {info, function, input}) = (App info rFun rInp, DebugInfo (dbgFun ++ dbgInp))
+bReduceNormal :: Expr ReduceInfo -> Maybe DebugExpr
+bReduceNormal (App {function = (Abs {bind, body}), input = x}) = Just (substitution body bind x, DebugInfo [(bind, x)])
+bReduceNormal (App {info, function, input}) = tryReduceFun <|> tryReduceInp
   where
-    (rFun, DebugInfo dbgFun) = bReduceNormal function
-    (rInp, DebugInfo dbgInp) = bReduceNormal input
-bReduceNormal (Abs {info, bind, body}) = (Abs info bind rBody, DebugInfo dbgBody)
+    tryReduceFun = (\(a, d) -> (App info a input, d)) <$> bReduceNormal function
+    tryReduceInp = Bifunctor.first (App info function) <$> bReduceNormal input
+bReduceNormal (Abs {info, bind, body}) = tryReduceBody
   where
-    (rBody, DebugInfo dbgBody) = bReduceNormal body
-bReduceNormal a = (a, DebugInfo [])
+    tryReduceBody = Bifunctor.first (Abs info bind) <$> bReduceNormal body
+bReduceNormal _ = Nothing
 
 -- (λx.t) s -> t[x := s]
 bReduceCBV :: Expr ReduceInfo -> Maybe DebugExpr
 bReduceCBV (App {info, function = f@(Abs {bind, body}), input = x}) =
-  Bifunctor.first (App info f) <$> bReduceCBV x
-    <|> (\(a, d) -> (App info a x, d)) <$> bReduceCBV f
-    <|> Just (substitution body bind x, DebugInfo [(bind, x)])
+  tryReduceInp
+    <|> tryReduceFun
+    <|> betaReduce
+  where
+    tryReduceInp = Bifunctor.first (App info f) <$> bReduceCBV x
+    tryReduceFun = (\(a, d) -> (App info a x, d)) <$> bReduceCBV f
+    betaReduce = Just (substitution body bind x, DebugInfo [(bind, x)])
 bReduceCBV (App {info, function = f, input = x}) =
-  Bifunctor.first (App info f) <$> bReduceCBV x
-    <|> (\(a, d) -> (App info a x, d)) <$> bReduceCBV f
+  tryReduceInp
+    <|> tryReduceFun
+  where
+    tryReduceInp = Bifunctor.first (App info f) <$> bReduceCBV x
+    tryReduceFun = (\(a, d) -> (App info a x, d)) <$> bReduceCBV f
 bReduceCBV _ = Nothing
 
 aConversion :: Expr ReduceInfo -> Expr ReduceInfo -> Expr ReduceInfo
-aConversion abst@(Abs {info, bind, body}) toSub = Abs info suitable_char (substitution body bind (Var info suitable_char))
+aConversion abst@(Abs {info, bind, body}) toSub = Abs info suitableChar subbedBody
   where
-    suitable_char = head [x | x <- ['a' .. 'z'], not $ isVar abst x, not $ isFreeVar toSub x]
-aConversion _ _ = error "Cannot alpha reduce with not an abstraction"
+    suitableChar = head [x | x <- ['a' .. 'z'], not $ isVar abst x, not $ isFreeVar toSub x]
+    subbedBody = substitution body bind (Var info suitableChar)
+aConversion _ _ = error "Cannot alpha reduce something other than an abstraction"
 
 freeVars :: Expr a -> String
 freeVars (Abs {bind, body}) = [x | x <- freeVars body, x /= bind]
@@ -102,16 +110,23 @@ isVar (Abs {body}) a = isVar body a
 isVar (Var {name = x}) a = x == a
 isVar (App {function = lhs, input = rhs}) a = isVar lhs a || isVar rhs a
 
-lambdaReduceNormal :: Expr ReduceInfo -> [DebugExpr]
-lambdaReduceNormal expression
-  | expression == fst result = [(expression, DebugInfo [])]
-  | otherwise = result : lambdaReduceNormal (fst result)
+lambdaReduceMem :: Expr ReduceInfo -> Expr ReduceInfo
+lambdaReduceMem expression
+  | Just exp <- result = lambdaReduceMem (fst exp)
+  | otherwise = expression
   where
-    result = bReduceNormal (noSub <$ expression)
+    result = bReduceCBV expression
+
+lambdaReduceM :: (Monad m) => Expr ReduceInfo -> (Expr ReduceInfo -> Maybe DebugExpr) -> (DebugExpr -> m a) -> m a
+lambdaReduceM expression reduceFun f
+  | Just x <- result = f x >> lambdaReduceM (fst x) reduceFun f
+  | otherwise = f (expression, DebugInfo {subsitutions = []})
+  where
+    result = reduceFun expression
 
 lambdaReduceCBV :: Expr ReduceInfo -> [DebugExpr]
 lambdaReduceCBV expression
-  | Just exp <- result =  exp : lambdaReduceNormal (fst exp)
+  | Just exp <- result = exp : lambdaReduceCBV (fst exp)
   | otherwise = []
   where
     result = bReduceCBV expression

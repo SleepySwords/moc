@@ -15,9 +15,10 @@ import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
 
 type SubstiutionState = State (Map (Expr ReduceInfo) (Expr ReduceInfo))
 
-newtype DebugInfo = DebugInfo
+data DebugInfo = DebugInfo
   { subsitutions :: [(Char, Expr ReduceInfo)]
   }
+  | Final
 
 type DebugExpr = (Expr ReduceInfo, DebugInfo)
 
@@ -49,6 +50,11 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
   | v /= x && not (isFreeVar r v) = Abs info v (substitution t x r)
   -- Must alpha reduce here to avoid name collisions
   | otherwise = substitution (aConversion abst r) x r
+
+
+-- It should hopefully not be too costly to append to store the substituted variabeles
+-- and then append the path. This is not and pretty much cannot be tail call optimised
+-- so it should be fine.
 
 -- (λx.t) s -> t[x := s]
 bReduceNormal :: Expr ReduceInfo -> Maybe DebugExpr
@@ -117,12 +123,13 @@ lambdaReduceMem expression
   where
     result = bReduceCBV expression
 
-lambdaReduceM :: (Monad m) => Expr ReduceInfo -> (Expr ReduceInfo -> Maybe DebugExpr) -> (DebugExpr -> m a) -> m a
-lambdaReduceM expression reduceFun f
-  | Just x <- result = f x >> lambdaReduceM (fst x) reduceFun f
-  | otherwise = f (expression, DebugInfo {subsitutions = []})
+-- Remove expr when getting rid of the fmap
+lambdaReduceM :: (Monad m) => Expr ReduceInfo -> (Expr ReduceInfo -> Expr ReduceInfo) -> (Expr ReduceInfo -> Maybe DebugExpr) -> (DebugExpr -> m a) -> m a
+lambdaReduceM expression expr reduceFun f
+  | Just x <- result = f x >> lambdaReduceM (fst x) expr reduceFun f
+  | otherwise = f (expression, Final)
   where
-    result = reduceFun expression
+    result = reduceFun $ expr expression
 
 lambdaReduceCBV :: Expr ReduceInfo -> [DebugExpr]
 lambdaReduceCBV expression

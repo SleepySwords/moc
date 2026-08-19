@@ -15,3 +15,6 @@ mapFst f (a, b) = (f a, b)
 
 mapThd :: (c -> d) -> (a, b, c) -> (a, b, d)
 mapThd f (a, b, c) = (a, b, f c)
+
+assocLeft :: (a, (b, c)) -> (a, b, c)
+assocLeft (a, (b, c)) = (a, b, c)

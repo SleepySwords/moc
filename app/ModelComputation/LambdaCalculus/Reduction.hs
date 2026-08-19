@@ -15,9 +15,10 @@ import ModelComputation.LambdaCalculus.Types (Expr (..), ReduceInfo (..))
 
 type SubstiutionState = State (Map (Expr ReduceInfo) (Expr ReduceInfo))
 
-data DebugInfo = DebugInfo
-  { subsitutions :: [(Char, Expr ReduceInfo)]
-  }
+data DebugInfo
+  = DebugInfo
+      { subsitutions :: [(Char, Expr ReduceInfo)]
+      }
   | Final
 
 type DebugExpr = (Expr ReduceInfo, DebugInfo)
@@ -26,9 +27,9 @@ noSub :: ReduceInfo
 noSub = ReduceInfo {substituted = Nothing}
 
 replacedBind :: Expr ReduceInfo -> Char -> Expr ReduceInfo
-replacedBind (Var _ name) x = Var (ReduceInfo {substituted = Just x}) name
-replacedBind (App _ fun input) x = App (ReduceInfo {substituted = Just x}) fun input
-replacedBind (Abs _ bind body) x = Abs (ReduceInfo {substituted = Just x}) bind body
+replacedBind var@(Var {}) x = var {info = ReduceInfo {substituted = Just x}}
+replacedBind app@(App {}) x = app {info = ReduceInfo {substituted = Just x}}
+replacedBind abs@(Abs {}) x = abs {info = ReduceInfo {substituted = Just x}}
 
 -- t[x := r]
 -- t, s and r are lambda vars
@@ -50,7 +51,6 @@ substitution abst@(Abs {info, bind = v, body = t}) x r
   | v /= x && not (isFreeVar r v) = Abs info v (substitution t x r)
   -- Must alpha reduce here to avoid name collisions
   | otherwise = substitution (aConversion abst r) x r
-
 
 -- It should hopefully not be too costly to append to store the substituted variabeles
 -- and then append the path. This is not and pretty much cannot be tail call optimised

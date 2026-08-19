@@ -7,7 +7,6 @@
 module ModelComputation.FiniteStateAutomota.NFA where
 
 import Data.List hiding (insert)
-import Data.Maybe (mapMaybe)
 import Data.Set (Set, difference, empty, fromList, insert, member, toList)
 import qualified Data.Set as Set
 import qualified ModelComputation.FiniteStateAutomota.DFA as D

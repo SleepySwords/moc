@@ -3,6 +3,7 @@
 
 module Main where
 
+import Control.Monad
 import Control.Monad.IO.Class (MonadIO)
 import Data.Map (empty, insert)
 import Data.Maybe (fromMaybe)
@@ -13,13 +14,14 @@ import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
 import ModelComputation.FiniteStateAutomota.Parser (parseDetermisticAutomota, parseNondetermisticAutomota)
 import ModelComputation.LambdaCalculus.Command
 import ModelComputation.LambdaCalculus.Parser (lambdaParser, newSymbolTable)
-import ModelComputation.LambdaCalculus.Reduction (DebugInfo (DebugInfo, subsitutions), bReduceCBV, bReduceNormal, lambdaReduceCBV, lambdaReduceMem)
 import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.TuringMachine.Parser (parseTuringMachine)
 import ModelComputation.TuringMachine.Turing (isValid, printState, runMachine, verifyMachine)
+import Repl.Parser (parseAssignment, parseStatement)
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStrLn, runInputT)
 import System.Environment (getArgs)
 import Text.Megaparsec (MonadParsec (eof), errorBundlePretty, parse, parseTest)
+import ModelComputation.LambdaCalculus.Reduction (bReduceCBV, bReduceNormal)
 
 main :: IO ()
 main = getArgs >>= parseArgument
@@ -113,6 +115,16 @@ runDFAMode filename = do
       maybe (outputStrLn "") (outputStrLn . show . runDFA dfa) toEval
       runTest dfa
 
+runRepl :: [String] -> IO ()
+runRepl _ = do
+  runInputT defaultSettings rep
+  where
+    rep = do
+        toEval <- getInputLine "λ> "
+
+        forM_ toEval (either (outputStrLn . errorBundlePretty) (outputStrLn. show) . parse parseStatement "REPL" . pack)
+        rep
+
 runNFAMode :: String -> IO ()
 runNFAMode filename = do
   dfaText <- readFile filename
@@ -149,5 +161,6 @@ parseArgument ["turing"] = runTuringMode ""
 parseArgument ["turing", a] = runTuringMode a
 parseArgument ["dfa", a] = runDFAMode a
 parseArgument ["nfa", a] = runNFAMode a
+parseArgument ("repl" : a) = runRepl a
 parseArgument ["translate_nfa", a] = runNFATranslateMode a
 parseArgument _ = putStrLn "Unknown mode: Use either lambda, turing, dfa or nfa"

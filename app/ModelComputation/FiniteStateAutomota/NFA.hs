@@ -33,6 +33,7 @@ data NondeterministFiniteAutomota = NondetermisticFiniteAutomota
     initialState :: State,
     finalStates :: Set State
   }
+  deriving (Ord, Eq)
 
 instance Show NondeterministFiniteAutomota where
   show

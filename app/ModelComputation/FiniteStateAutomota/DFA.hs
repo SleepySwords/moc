@@ -20,6 +20,7 @@ data DeterministFiniteAutomota = DeterministFiniteAutomota
     initialState :: State,
     finalStates :: Set State
   }
+  deriving (Ord, Eq)
 
 instance Show DeterministFiniteAutomota where
   show

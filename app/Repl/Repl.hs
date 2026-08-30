@@ -7,6 +7,7 @@ import qualified Data.Set
 import ModelComputation.FiniteStateAutomota.NFA (NondeterministFiniteAutomota(NondetermisticFiniteAutomota), TransitionFunction)
 import qualified Data.Set as Set
 import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
+import GHC.Generics (C)
 
 type SymbolTable = Map String Expr
 
@@ -29,10 +30,7 @@ evaluateExpression st (Tuple s) = Tuple $ evaluateExpression st <$> s
 evaluateExpression st (Function (a, b)) = Function (evaluateExpression st a, evaluateExpression st b)
 
 -- Evaluate actual constructions
-evaluateExpression st (Call (Ident "NFA") b) = either Ident id (exprToNFA (evaluateExpression st b))
-evaluateExpression _ (Call (NFA n) (Literal b)) = Ident (show $ NFA.runNFA n b)
-evaluateExpression _ (Call (NFA n) (Ident b)) = Ident (show $ NFA.runNFA n b)
-evaluateExpression st (Call a b) = Call (evaluateExpression st a) (evaluateExpression st b)
+evaluateExpression st (Call a b) = evaluateCall (evaluateExpression st a) (evaluateExpression st b)
 
 evaluateExpression _ (NFA nfa) = NFA nfa
 evaluateExpression _ (DFA dfa) = DFA dfa
@@ -46,6 +44,12 @@ exprToNFA (Tuple [st, sm, fn, i, fi]) = do
   fin <- tryStates fi
   return $ NFA (NondetermisticFiniteAutomota states alph functions initialState fin)
 exprToNFA _ = Left "Invalid argument: expected tuple with lenght of five"
+
+evaluateCall :: Expr -> Expr -> Expr
+evaluateCall (Literal "NFA") b = either Ident id (exprToNFA b)
+evaluateCall (NFA n) (Literal b) = Ident (show $ NFA.runNFA n b)
+evaluateCall (NFA n) (Ident b) = Ident (show $ NFA.runNFA n b)
+evaluateCall a b = Call a b
 
 tryStates :: Expr -> Either String (Data.Set.Set String)
 tryStates (Set s) = Set.fromList <$> mapM tryState (Set.toList s)

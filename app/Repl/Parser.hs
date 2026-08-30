@@ -26,7 +26,7 @@ symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
 lambdaSymbol :: Parser ()
-lambdaSymbol = void $ lexeme (single '\\') <|> lexeme (single 'λ')
+lambdaSymbol = void $ lexeme (single '\\')
 
 dotSymbol :: Parser ()
 dotSymbol = void $ lexeme (single '.')

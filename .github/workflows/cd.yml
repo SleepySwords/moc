@@ -53,11 +53,11 @@ jobs:
       contents: write
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, macos-13]
+        os: [windows-latest, macos-latest, ubuntu-latest, macos-13]
         include:
-          # - os: windows-latest
-          #   build: windows-x86_64
-          #   friendly_name: windows
+          - os: windows-latest
+            build: windows-x86_64
+            friendly_name: windows
           - os: macos-13
             build: x86_64-apple-darwin
             friendly_name: macos-x86

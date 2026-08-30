@@ -21,13 +21,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       upload-url: ${{ steps.create-release-draft.outputs.upload_url }}
+      tag-name: ${{ steps.setup-env.outputs.TAG_NAME }}
     steps:
-      - if: github.event_name == 'push'
+      - name: Setup environment variables
+        id: setup-env
         run: |
-          TAG_NAME=${{ github.ref }}
-          echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
-      - if: github.event_name == 'workflow_dispatch'
-        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "TAG_NAME=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+          else
+            echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          fi
       - if: github.event.inputs.tag_name == 'nightly'
         run: |
           echo "PRERELEASE=true" >> $GITHUB_ENV
@@ -35,32 +39,29 @@ jobs:
       - if: github.event.inputs.tag_name != 'nightly'
         run: |
           echo "PRERELEASE=false" >> $GITHUB_ENV
-          echo "SUBJECT=Release of moc $TAG_NAME" >> $GITHUB_ENV
+          echo "SUBJECT=Release of moc ${{ steps.setup-env.outputs.TAG_NAME }}" >> $GITHUB_ENV
       - name: Create release draft
         id: create-release-draft
-        uses: release-drafter/release-drafter@v6
+        uses: release-drafter/release-drafter@v7
         with:
           config-name: release-drafter.yml
-          disable-autolabeler: true
-          tag: ${{ env.TAG_NAME }}
+          tag: ${{ steps.setup-env.outputs.TAG_NAME }}
           name: ${{ env.SUBJECT }}
           prerelease: ${{ env.PRERELEASE }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   dist:
     permissions:
       contents: write
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, macos-13]
+        os: [windows-latest, macos-latest, ubuntu-latest, macos-13]
         include:
-          # - os: windows-latest
-          #   build: windows-x86_64
-          #   friendly_name: windows
-          - os: macos-13
-            build: x86_64-apple-darwin
-            friendly_name: macos-x86
+          - os: windows-latest
+            build: windows-x86_64
+            friendly_name: windows
+          # - os: macos-13
+          #   build: x86_64-apple-darwin
+          #   friendly_name: macos-x86
           - os: macos-latest
             build: aarch64-apple-darwin
             friendly_name: macos-arch
@@ -84,7 +85,7 @@ jobs:
           mkdir -p "$staging"
           cabal update
           if [ "${{matrix.os}}" = "windows-latest" ]; then
-            BUILD_PATH=$(cabal build -f terminfo | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
+            BUILD_PATH=$(cabal build -f-terminfo | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
             cp $BUILD_PATH "$staging/"
             7z a "$staging.zip" "$staging"
             echo "ASSET=$staging.zip" >> $GITHUB_ENV
@@ -92,14 +93,10 @@ jobs:
             BUILD_PATH=$(cabal build | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
             cp $BUILD_PATH "$staging/"
             tar czf "$staging.tar.gz" "$staging"
+            echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
           fi
-          echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
       - name: Upload
-        uses: actions/upload-release-asset@v1.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v3
         with:
-          upload_url: ${{ needs.create-release.outputs.upload-url }}
-          asset_path: ${{ env.ASSET }}
-          asset_name: ${{ env.ASSET }}
-          asset_content_type: application/octet-stream
+          tag_name: ${{ needs.create-release.outputs.tag-name }}
+          files: ${{ env.ASSET }}

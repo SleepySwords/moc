@@ -95,11 +95,9 @@ jobs:
           fi
           echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
       - name: Upload
-        uses: actions/upload-release-asset@v1.0.1
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag-name }}
+          files: ${{ env.ASSET }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload-url }}
-          asset_path: ${{ env.ASSET }}
-          asset_name: ${{ env.ASSET }}
-          asset_content_type: application/octet-stream

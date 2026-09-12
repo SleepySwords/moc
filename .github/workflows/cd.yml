@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       upload-url: ${{ steps.create-release-draft.outputs.upload_url }}
+      tag-name: ${{ steps.outputs.TAG_NAME }}
     steps:
       - if: github.event_name == 'push'
         run: |
@@ -96,6 +97,7 @@ jobs:
           echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
       - name: Upload
         uses: softprops/action-gh-release@v3
+          tag_name: ${{ needs.create-release.outputs.tag-name }}
         with:
           files: ${{ env.ASSET }}
         env:

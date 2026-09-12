@@ -26,11 +26,11 @@ jobs:
       - name: Setup environment variables
         id: setup-env
         run: |
-          if [ ${{ github.event_name }} = 'push']; then
+          if [ "${{ github.event_name }}" = "push" ]; then
             TAG_NAME=${{ github.ref }}
             echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_OUTPUT
           fi
-          if [ ${{ github.event_name }} = 'workflow_dispatch']; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
           fi
       - if: github.event.inputs.tag_name == 'nightly'
@@ -104,5 +104,3 @@ jobs:
         with:
           tag_name: ${{ needs.create-release.outputs.tag-name }}
           files: ${{ env.ASSET }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

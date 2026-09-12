@@ -97,7 +97,6 @@ jobs:
       - name: Upload
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ needs.create-release.outputs.tag-name }}
           files: ${{ env.ASSET }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

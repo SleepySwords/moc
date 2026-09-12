@@ -4,8 +4,9 @@ module Repl.Types where
 
 import Data.List (intercalate)
 import qualified Data.Set as Set
-import ModelComputation.FiniteStateAutomota.DFA (DeterministFiniteAutomota)
-import ModelComputation.FiniteStateAutomota.NFA (NondeterministFiniteAutomota (..))
+import qualified ModelComputation.FiniteStateAutomota.DFA as DFA
+import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
+import ModelComputation.TuringMachine.Turing (TuringMachine)
 
 data Expr
   = Literal String
@@ -14,8 +15,9 @@ data Expr
   | Tuple [Expr]
   | Function (Expr, Expr)
   | Call Expr Expr
-  | NFA NondeterministFiniteAutomota
-  | DFA DeterministFiniteAutomota
+  | NFA NFA.NondeterministFiniteAutomota
+  | DFA DFA.DeterministFiniteAutomota
+  | Turing TuringMachine
   deriving (Ord, Eq)
 
 data Statement = Assignment String Expr | Expression Expr
@@ -28,16 +30,16 @@ instance Show Expr where
   show (Call x y) = show x ++ " " ++ show y
   show (Ident n) = show n
   show (NFA n) = "NFA " ++ "(" ++ showNFA n ++ " )"
-  show (DFA n) = show n
+  show (DFA n) = "DFA " ++ "(" ++ showDFA n ++ " )"
 
-showNFA :: NondeterministFiniteAutomota -> String
+showNFA :: NFA.NondeterministFiniteAutomota -> String
 showNFA
-  NondetermisticFiniteAutomota
-    { states,
-      alphabet,
-      transitionFunctions,
-      initialState,
-      finalStates
+  NFA.NondetermisticFiniteAutomota
+    { NFA.states,
+      NFA.alphabet,
+      NFA.transitionFunctions,
+      NFA.initialState,
+      NFA.finalStates
     } =
     ( "{ "
         ++ intercalate ", " (Set.toList states)
@@ -49,6 +51,30 @@ showNFA
          )
       ++ ( " { "
              ++ intercalate ", " ((\((a, b), c) -> "\\( " ++ a ++ "," ++ [b] ++ " ) -> { " ++ intercalate ", " (Set.toList c) ++ " }") <$> transitionFunctions)
+             ++ " }, "
+         )
+      ++ ( initialState ++ ", ")
+      ++ ("{ " ++ intercalate ", " (Set.toList finalStates) ++ " }")
+
+showDFA :: DFA.DeterministFiniteAutomota -> String
+showDFA
+  DFA.DeterministFiniteAutomota
+    { DFA.states,
+      DFA.alphabet,
+      DFA.transitionFunctions,
+      DFA.initialState,
+      DFA.finalStates
+    } =
+    ( "{ "
+        ++ intercalate ", " (Set.toList states)
+        ++ " }, "
+    )
+      ++ ( "{ "
+             ++ intercalate ", " ((: []) <$> Set.toList alphabet)
+             ++ " }, "
+         )
+      ++ ( " { "
+             ++ intercalate ", " ((\((a, b), c) -> "\\( " ++ a ++ "," ++ [b] ++ " ) -> " ++ c) <$> transitionFunctions)
              ++ " }, "
          )
       ++ ( initialState ++ ", ")

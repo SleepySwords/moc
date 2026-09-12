@@ -1,13 +1,12 @@
 module Repl.Repl where
 import Repl.Types (Expr (Literal, Ident, Set, Tuple, Function, Call, NFA, DFA), Statement (Assignment, Expression))
 import Control.Monad.State (State, MonadState (get, put), gets)
-import Data.Map (Map, insert, lookup, fromList)
+import Data.Map (Map, insert, lookup)
 import Data.Maybe (fromMaybe)
 import qualified Data.Set
-import ModelComputation.FiniteStateAutomota.NFA (NondeterministFiniteAutomota(NondetermisticFiniteAutomota), TransitionFunction)
 import qualified Data.Set as Set
 import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
-import GHC.Generics (C)
+import qualified ModelComputation.FiniteStateAutomota.DFA as DFA
 
 type SymbolTable = Map String Expr
 
@@ -39,16 +38,30 @@ exprToNFA :: Expr -> Either String Expr
 exprToNFA (Tuple [st, sm, fn, i, fi]) = do
   states <- tryStates st
   alph <- trySymbols sm
-  functions <- tryFunctions fn
+  functions <- tryNonDetFunctions fn
   initialState <- tryState i
   fin <- tryStates fi
-  return $ NFA (NondetermisticFiniteAutomota states alph functions initialState fin)
-exprToNFA _ = Left "Invalid argument: expected tuple with lenght of five"
+  return $ NFA (NFA.NondetermisticFiniteAutomota states alph functions initialState fin)
+exprToNFA _ = Left "Invalid argument: expected tuple with length of five"
+
+exprToDFA :: Expr -> Either String Expr
+exprToDFA (Tuple [st, sm, fn, i, fi]) = do
+  states <- tryStates st
+  alph <- trySymbols sm
+  functions <- tryDetFunctions fn
+  initialState <- tryState i
+  fin <- tryStates fi
+  return $ DFA (DFA.DeterministFiniteAutomota states alph functions initialState fin)
+exprToDFA _ = Left "Invalid argument: expected tuple with length of five"
 
 evaluateCall :: Expr -> Expr -> Expr
 evaluateCall (Literal "NFA") b = either Ident id (exprToNFA b)
+evaluateCall (Literal "DFA") b = either Ident id (exprToDFA b)
+evaluateCall (Literal "Turing") b = either Ident id (exprToDFA b)
 evaluateCall (NFA n) (Literal b) = Ident (show $ NFA.runNFA n b)
 evaluateCall (NFA n) (Ident b) = Ident (show $ NFA.runNFA n b)
+evaluateCall (DFA n) (Literal b) = Ident (show $ DFA.runDFA n b)
+evaluateCall (DFA n) (Ident b) = Ident (show $ DFA.runDFA n b)
 evaluateCall a b = Call a b
 
 tryStates :: Expr -> Either String (Data.Set.Set String)
@@ -67,14 +80,26 @@ trySymbol :: Expr -> Either String Char
 trySymbol (Literal [x]) = Right x
 trySymbol _ = Left "Invalid argument: symbol is not a literal"
 
-tryFunctions :: Expr -> Either String [TransitionFunction]
-tryFunctions (Set s) = mapM tryFunction (Set.toList s)
-tryFunctions _ = Left "Invalid argument: functions is not a set"
+tryNonDetFunctions :: Expr -> Either String [NFA.TransitionFunction]
+tryNonDetFunctions (Set s) = mapM tryNonDetFunction (Set.toList s)
+tryNonDetFunctions _ = Left "Invalid argument: functions is not a set"
 
-tryFunction :: Expr -> Either String TransitionFunction
-tryFunction (Function (Tuple [a, b], c)) = do
+tryNonDetFunction :: Expr -> Either String NFA.TransitionFunction
+tryNonDetFunction (Function (Tuple [a, b], c)) = do
   inputState <- tryState a
   inputSymbol <- trySymbol b
   outputState <- tryStates c
   return ((inputState, inputSymbol), outputState)
-tryFunction _ = Left "Invalid argument: functions contains a non-function type"
+tryNonDetFunction _ = Left "Invalid argument: functions contains a non-function type"
+
+tryDetFunctions :: Expr -> Either String [DFA.TransitionFunction]
+tryDetFunctions (Set s) = mapM tryDetFunction (Set.toList s)
+tryDetFunctions _ = Left "Invalid argument: functions is not a set"
+
+tryDetFunction :: Expr -> Either String DFA.TransitionFunction
+tryDetFunction (Function (Tuple [a, b], c)) = do
+  inputState <- tryState a
+  inputSymbol <- trySymbol b
+  outputState <- tryState c
+  return ((inputState, inputSymbol), outputState)
+tryDetFunction _ = Left "Invalid argument: functions contains a non-function type"

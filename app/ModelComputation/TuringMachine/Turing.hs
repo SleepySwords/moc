@@ -14,7 +14,7 @@ type Symbols = Set Symbol
 
 type State = String
 
-data Shift = LeftShift | RightShift
+data Shift = LeftShift | RightShift deriving (Ord, Eq)
 
 instance Show Shift where
   show LeftShift = "L"
@@ -33,7 +33,7 @@ data TuringMachine = TuringMachine
     initialState :: State,
     finalStates :: Set State
   }
-  deriving (Show)
+  deriving (Show, Ord, Eq)
 
 initialiseMachine :: TuringMachine -> Tape -> (Tape, State, Int)
 initialiseMachine tm tape = (tape, initialState tm, 0)

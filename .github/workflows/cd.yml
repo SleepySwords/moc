@@ -21,14 +21,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       upload-url: ${{ steps.create-release-draft.outputs.upload_url }}
-      tag-name: ${{ steps.outputs.TAG_NAME }}
+      tag-name: ${{ steps.setup-env.outputs.TAG_NAME }}
     steps:
-      - if: github.event_name == 'push'
+      - name: Setup environment variables
+        id: setup-env
         run: |
-          TAG_NAME=${{ github.ref }}
-          echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
-      - if: github.event_name == 'workflow_dispatch'
-        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+          if [ ${{ github.event_name }} = 'push']; then
+            TAG_NAME=${{ github.ref }}
+            echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+          if [ ${{ github.event_name }} = 'workflow_dispatch']; then
+            echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          fi
       - if: github.event.inputs.tag_name == 'nightly'
         run: |
           echo "PRERELEASE=true" >> $GITHUB_ENV
@@ -36,14 +40,14 @@ jobs:
       - if: github.event.inputs.tag_name != 'nightly'
         run: |
           echo "PRERELEASE=false" >> $GITHUB_ENV
-          echo "SUBJECT=Release of moc $TAG_NAME" >> $GITHUB_ENV
+          echo "SUBJECT=Release of moc ${{ steps.setup-env.outputs.TAG_NAME }}" >> $GITHUB_ENV
       - name: Create release draft
         id: create-release-draft
         uses: release-drafter/release-drafter@v6
         with:
           config-name: release-drafter.yml
           disable-autolabeler: true
-          tag: ${{ env.TAG_NAME }}
+          tag: ${{ steps.setup-env.outputs.TAG_NAME }}
           name: ${{ env.SUBJECT }}
           prerelease: ${{ env.PRERELEASE }}
         env:
@@ -93,12 +97,12 @@ jobs:
             BUILD_PATH=$(cabal build | grep "Linking" | sed 's/.*Linking \(.*\)/\1/')
             cp $BUILD_PATH "$staging/"
             tar czf "$staging.tar.gz" "$staging"
+            echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
           fi
-          echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
       - name: Upload
         uses: softprops/action-gh-release@v3
-          tag_name: ${{ needs.create-release.outputs.tag-name }}
         with:
+          tag_name: ${{ needs.create-release.outputs.tag-name }}
           files: ${{ env.ASSET }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

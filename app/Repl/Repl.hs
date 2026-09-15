@@ -45,7 +45,7 @@ exprToNFA (Tuple [st, sm, fn, i, fi]) = do
   initialState <- tryState i
   fin <- tryStates fi
   return $ NFA (NFA.NondetermisticFiniteAutomota states alph functions initialState fin)
-exprToNFA _ = Left "Invalid argument: expected tuple with length of five"
+exprToNFA x = Left $ "Invalid argument: expected tuple with length of five, found " ++ show x
 
 exprToDFA :: Expr -> Either String Expr
 exprToDFA (Tuple [st, sm, fn, i, fi]) = do
@@ -55,19 +55,19 @@ exprToDFA (Tuple [st, sm, fn, i, fi]) = do
   initialState <- tryState i
   fin <- tryStates fi
   return $ DFA (DFA.DeterministFiniteAutomota states alph functions initialState fin)
-exprToDFA _ = Left "Invalid argument: expected tuple with length of five"
+exprToDFA x = Left $ "Invalid argument: expected tuple with length of five, found " ++ show x
 
 exprToTuring :: Expr -> Either String Expr
-exprToTuring (Tuple [st, inSym, tapeAlph, b, tf, initState, finalStates]) = do
+exprToTuring (Tuple [st, tapeAlph, b, inSym, tf, initState, finalStates]) = do
   states <- tryStates st
-  inputSymbols <- trySymbols inSym
   tapeAlphabet <- trySymbols tapeAlph
   blank <- trySymbol b
+  inputAlphabet <- trySymbols inSym
   transitionFunction <- tryTuringFunctions tf
   _initState <- tryState initState
   _finalStates <- tryStates finalStates
-  return $ Turing (Turing.TuringMachine states inputSymbols tapeAlphabet blank transitionFunction _initState _finalStates)
-exprToTuring _ = Left "Invalid argument: expected tuple with length of five"
+  return $ Turing (Turing.TuringMachine states inputAlphabet tapeAlphabet blank transitionFunction _initState _finalStates)
+exprToTuring x = Left $ "Invalid argument: expected tuple with length of five, found " ++ show x
 
 evaluateCall :: Expr -> Expr -> Expr
 evaluateCall (Literal "NFA") b = either Ident id (exprToNFA b)
@@ -77,10 +77,10 @@ evaluateCall (NFA n) (Literal b) = Ident (show $ NFA.runNFA n b)
 evaluateCall (NFA n) (Ident b) = Ident (show $ NFA.runNFA n b)
 evaluateCall (DFA n) (Literal b) = Ident (show $ DFA.runDFA n b)
 evaluateCall (DFA n) (Ident b) = Ident (show $ DFA.runDFA n b)
-evaluateCall (Turing n) (Literal b) = Tuple [result, traceback steps]
+evaluateCall (Turing n) (Literal b) = Tuple [result, outputStr, traceback steps]
   where steps = Turing.runMachine n b
         result = Ident $ if Turing.isValid n steps then "Success" else "Failure"
-        outputStr = Ident $ let (x, _, _) = last steps in x
+        outputStr = Literal $ let (x, _, _) = last steps in x
 evaluateCall (Turing n) (Ident b) = Ident (show $ Turing.runMachine n b)
 evaluateCall a b = Call a b
 
@@ -94,23 +94,23 @@ printMachineSteps machine output =
 
 tryStates :: Expr -> Either String (Data.Set.Set String)
 tryStates (Set s) = Set.fromList <$> mapM tryState (Set.toList s)
-tryStates _ = Left "Invalid argument: states is not a set"
+tryStates x = Left $ "Invalid argument: states is not a set, found " ++ show x
 
 tryState :: Expr -> Either String String
 tryState (Literal x) = Right x
-tryState _ = Left "Invalid argument: a state is not a string"
+tryState x = Left $ "Invalid argument: a state is not a string, found " ++ show x
 
 trySymbols :: Expr -> Either String (Data.Set.Set Char)
 trySymbols (Set s) = Set.fromList <$> mapM trySymbol (Set.toList s)
-trySymbols _ = Left "Invalid argument: symbols is not a set"
+trySymbols x = Left $ "Invalid argument: symbols is not a set, found " ++ show x
 
 trySymbol :: Expr -> Either String Char
 trySymbol (Literal [x]) = Right x
-trySymbol _ = Left "Invalid argument: symbol is not a literal"
+trySymbol x = Left $ "Invalid argument: symbol is not a literal, found " ++ show x
 
 tryNonDetFunctions :: Expr -> Either String [NFA.TransitionFunction]
 tryNonDetFunctions (Set s) = mapM tryNonDetFunction (Set.toList s)
-tryNonDetFunctions _ = Left "Invalid argument: functions is not a set"
+tryNonDetFunctions x = Left $ "Invalid argument: functions is not a set, found " ++ show x
 
 tryNonDetFunction :: Expr -> Either String NFA.TransitionFunction
 tryNonDetFunction (Function (Tuple [a, b], c)) = do
@@ -118,11 +118,11 @@ tryNonDetFunction (Function (Tuple [a, b], c)) = do
   inputSymbol <- trySymbol b
   outputState <- tryStates c
   return ((inputState, inputSymbol), outputState)
-tryNonDetFunction _ = Left "Invalid argument: functions contains a non-function type"
+tryNonDetFunction x = Left $ "Invalid argument: functions contains a non-function type, found " ++ show x
 
 tryDetFunctions :: Expr -> Either String [DFA.TransitionFunction]
 tryDetFunctions (Set s) = mapM tryDetFunction (Set.toList s)
-tryDetFunctions _ = Left "Invalid argument: functions is not a set"
+tryDetFunctions x = Left $ "Invalid argument: functions is not a set, found " ++ show x
 
 tryDetFunction :: Expr -> Either String DFA.TransitionFunction
 tryDetFunction (Function (Tuple [a, b], c)) = do
@@ -130,16 +130,16 @@ tryDetFunction (Function (Tuple [a, b], c)) = do
   inputSymbol <- trySymbol b
   outputState <- tryState c
   return ((inputState, inputSymbol), outputState)
-tryDetFunction _ = Left "Invalid argument: functions contains a non-function type"
+tryDetFunction x = Left $ "Invalid argument: functions contains a non-function type, found " ++ show x
 
 tryTuringFunctions :: Expr -> Either String [Turing.TransitionFunction]
 tryTuringFunctions (Set s) = mapM tryTuringFunction (Set.toList s)
-tryTuringFunctions _ = Left "Invalid argument: functions is not a set"
+tryTuringFunctions x = Left $ "Invalid argument: functions is not a set, found " ++ show x
 
 tryShift :: Expr -> Either String Shift
 tryShift (Literal ['L']) = Right Turing.LeftShift
 tryShift (Literal ['R']) = Right Turing.LeftShift
-tryShift _ = Left "Invalid argument: symbol is not a literal"
+tryShift x = Left $ "Invalid argument: symbol is not a literal, found " ++ show x
 
 tryTuringFunction :: Expr -> Either String Turing.TransitionFunction
 tryTuringFunction (Function (Tuple [a, b], Tuple [c, d, e])) = do
@@ -149,4 +149,4 @@ tryTuringFunction (Function (Tuple [a, b], Tuple [c, d, e])) = do
   outputSymbol <- trySymbol d
   outputShift <- tryShift e
   return ((inputState, inputSymbol), (outputState, outputSymbol, outputShift))
-tryTuringFunction _ = Left "Invalid argument: functions contains a non-function type"
+tryTuringFunction x = Left $ "Invalid argument: functions contains a non-function type, found " ++ show x

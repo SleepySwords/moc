@@ -14,51 +14,21 @@ import ModelComputation.FiniteStateAutomota.NFA (translateNFA)
 import qualified ModelComputation.FiniteStateAutomota.NFA as NFA
 import ModelComputation.FiniteStateAutomota.Parser (parseDetermisticAutomota, parseNondetermisticAutomota)
 import ModelComputation.LambdaCalculus.Command
-import ModelComputation.LambdaCalculus.Parser (lambdaParser, newSymbolTable)
+import ModelComputation.LambdaCalculus.Parser (newSymbolTable)
 import ModelComputation.LambdaCalculus.Reduction (bReduceCBV, bReduceNormal)
-import ModelComputation.LambdaCalculus.Types (integerToChurchEncoding)
 import ModelComputation.TuringMachine.Parser (parseTuringMachine)
 import ModelComputation.TuringMachine.Turing (isValid, printState, runMachine, verifyMachine)
 import Repl.Parser (parseStatement)
 import Repl.Repl (evaluateStatement)
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStrLn, runInputT)
 import System.Environment (getArgs)
-import Text.Megaparsec (MonadParsec (eof), errorBundlePretty, parse, parseTest)
+import Text.Megaparsec (errorBundlePretty, parse)
 
 main :: IO ()
 main = getArgs >>= parseArgument
 
 runLambdaMode :: [String] -> IO ()
 runLambdaMode args = do
-  parseTest (lambdaParser symbols <* eof) "\\x. x \\a.x \\y.y"
-  parseTest (lambdaParser symbols <* eof) "(\\x. (\\a.x \\y.y) x) a"
-  parseTest (lambdaParser symbols <* eof) "\\xy.x"
-  parseTest (lambdaParser symbols <* eof) "\\xy.x a v"
-  parseTest (lambdaParser symbols <* eof) "λf.λx.f (f (f x))"
-  runInputT
-    defaultSettings
-    ( do
-        run "(\\x. x \\x.x) a"
-        run "(λp.λa.λb.p b a) λx.λy.y"
-        run "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
-
-        run "(λpq.p q p) (λxy.y) (λxy.y)"
-        run "(λx.(\\x.x) x)"
-        run "(λy.(\\x.y)) x"
-        run "(λm.λn.λf.λx.m f (n f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x)))"
-        run "(λm.λn.λf.λx.m f (n f x)) 3 12"
-        run "(λxyz.x y z) (λx.x x) (λx.x) x"
-        run "(\\bxy.b x y) True 1 0"
-        run "If False 1 100"
-        run "(\\xy.x y) y"
-        run "- 10 3"
-        run "+ 10 3"
-        run "10"
-        -- runNormalise "\\x.\\y.x y"
-        -- runNormalise "\\b.\\a.b a"
-    )
-
-  print $ integerToChurchEncoding 3
 
   runInputT defaultSettings (replCommand runAllSteps lambdaReduce symbols)
   where

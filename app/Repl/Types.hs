@@ -98,14 +98,14 @@ showTuring
         ++ " }, "
     )
       ++ ( "{ "
-             ++ intercalate ", " ((: []) <$> Set.toList inputSymbols)
-             ++ " }, "
-         )
-      ++ ( "{ "
              ++ intercalate ", " ((: []) <$> Set.toList tapeAlphabet)
              ++ " }, "
          )
       ++ ([blank] ++ ", ")
+      ++ ( "{ "
+             ++ intercalate ", " ((: []) <$> Set.toList inputSymbols)
+             ++ " }, "
+         )
       ++ ( " { "
              ++ intercalate ", " ((\((a, b), (c, d, e)) -> "\\( " ++ a ++ "," ++ [b] ++ " ) -> ( " ++ c ++ ", " ++ [d] ++ ", " ++ showShift e ++ " )") <$> transitionFunctions)
              ++ " }, "

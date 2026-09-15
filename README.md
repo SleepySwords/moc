@@ -8,7 +8,13 @@ Having fun with different models!!
 - Turing machine
 - Lambda Calculus
 
-## Run
+## How to Build
+
+```bash
+cabal build
+```
+
+## How to Run
 
 ### REPL Mode
 ```bash
@@ -286,10 +292,3 @@ use the following command
 ```bash
 moc lambda all
 ```
-
-## How to Build
-
-```bash
-cabal build
-```
-

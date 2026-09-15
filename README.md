@@ -252,6 +252,16 @@ Additionally, we have provided a set of base assignments that can be used to
 define more complex programs. A list of the symbols and their corresponding
 lambda calculus definition has been provided below.
 
+This allows for complex expressions such as:
+
+```
+λ> If (LEQ 5 (+ 2 3)) 8 2
+
+Evaluating (λb.λx.λy.b x y) ((λm.λn.(λx.(λn.λf.n f) x ((λx.λy.x) (λx.λy.y)) (λx.λy.x)) ((λm.λn.(λn.λf.n f) n (λn.λf.λx.n (λg.λh.h (g f)) (λu.x) (λu.u)) m) m n)) (λf.λx.f (f (f (f (f x))))) ((λp.λq.λf.λx.p f (q f x)) (λf.λx.f (f x)) (λf.λx.f (f (f x))))) (λf.λx.f (f (f (f (f (f (f (f x)))))))) (λf.λx.f (f x))
+λf.λx.f (f (f (f (f (f (f (f x)))))))
+Also known as value 8
+```
+
 | Name     | Lambda Calculus                                         |
 | -------- |---------------------------------------------------------|
 | True     | \\xy.x                                                  |
@@ -276,7 +286,6 @@ lambda calculus definition has been provided below.
 | Pair     | \\xyf.f x y                                             |
 | Fst      | \\p.p True                                              |
 | Snd      | \\p.p False                                             |
-| Test     | (YCom) (\\r.r)                                          |
 
 ### Call-by-value
 

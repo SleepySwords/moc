@@ -28,9 +28,6 @@ symbol = L.symbol sc
 lambdaSymbol :: Parser ()
 lambdaSymbol = void $ lexeme (single '\\')
 
-dotSymbol :: Parser ()
-dotSymbol = void $ lexeme (single '.')
-
 whitespace :: Parser ()
 whitespace = void $ many space1
 
@@ -50,7 +47,7 @@ parseString :: Parser Expr
 parseString = single '"' *> (Literal <$> many (satisfy (/= '"'))) <* single '"'
 
 parseLiteral :: Parser Expr
-parseLiteral = parseString <|> (Ident <$> some alphaNumChar)
+parseLiteral = parseString <|> (Ident <$> some (alphaNumChar <|> single '.'))
 
 parseCall :: Parser Expr
 parseCall = do

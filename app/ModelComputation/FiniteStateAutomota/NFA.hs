@@ -65,14 +65,14 @@ instance Show NondeterministFiniteAutomota where
                ++ "}"
            )
 
-data Result = Success | Failiure deriving (Show, Eq, Ord)
+data Result = Success | Failure deriving (Show, Eq, Ord)
 
 instance Semigroup Result where
-  Failiure <> Failiure = Failiure
+  Failure <> Failure = Failure
   _ <> _ = Success
 
 instance Monoid Result where
-  mempty = Failiure
+  mempty = Failure
 
 type AutomotaInstance = (AString, State)
 
@@ -92,13 +92,13 @@ isValid :: NondeterministFiniteAutomota -> Set State -> AutomotaInstance -> Resu
 isValid nfa emptyTransitions ([], state) = if member state (finalStates nfa) then Success else resultEmpty
   where
     eTransitions = transitionFunction nfa (state, emptyString)
-    resultEmpty = maybe Failiure (anyValid nfa [] (insert state emptyTransitions) . (`difference` emptyTransitions)) eTransitions
+    resultEmpty = maybe Failure (anyValid nfa [] (insert state emptyTransitions) . (`difference` emptyTransitions)) eTransitions
 isValid nfa emptyTransitions (s : str, state) = result <> resultEmpty
   where
     tranitions = transitionFunction nfa (state, s)
-    result = maybe Failiure (anyValid nfa str empty) tranitions
+    result = maybe Failure (anyValid nfa str empty) tranitions
     eTransitions = transitionFunction nfa (state, emptyString)
-    resultEmpty = maybe Failiure (anyValid nfa (s : str) (insert state emptyTransitions) . (`difference` emptyTransitions)) eTransitions
+    resultEmpty = maybe Failure (anyValid nfa (s : str) (insert state emptyTransitions) . (`difference` emptyTransitions)) eTransitions
 
 runNFA :: NondeterministFiniteAutomota -> AString -> Result
 runNFA nfa str = isValid nfa empty initialMachine
